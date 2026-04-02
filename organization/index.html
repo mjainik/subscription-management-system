@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Organization Detail — Subscription Manager</title>
+    <link rel="stylesheet" href="../styles/main.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <header class="app-header" id="app-header"></header>
+    <div id="setup-banner"></div>
+
+    <div class="app-layout">
+        <aside class="app-sidebar" id="app-nav"></aside>
+
+        <main class="app-main">
+            <div id="org-detail">
+                <div class="loader"><div class="spinner"></div><p>Loading organization...</p></div>
+            </div>
+        </main>
+    </div>
+
+    <script src="../js/config.js"></script>
+    <script src="../js/utils.js"></script>
+    <script src="../js/auth.js"></script>
+    <script src="../js/components.js"></script>
+    <script src="../js/github-api.js"></script>
+    <script src="../js/export.js"></script>
+    <script src="../lib/html2pdf.bundle.min.js" defer></script>
+
+    <script>
+        let currentIssue = null;
+        let currentParsed = null;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            Header.render([
+                { label: 'Organizations', url: `${CONFIG.baseUrl}/organizations/` },
+                { label: 'Detail' }
+            ]);
+            Nav.render('organizations');
+            Auth.renderSetupBanner('setup-banner');
+            if (Auth.isAuthenticated()) onAuthReady();
+        });
+
+        async function onAuthReady() { await loadOrganization(); }
+
+        async function loadOrganization() {
+            const id = Utils.getQueryParam('id');
+            if (!id) {
+                document.getElementById('org-detail').innerHTML = '<div class="empty-state"><h3>No organization ID provided</h3><a href="../organizations/" class="btn btn-primary">Back to list</a></div>';
+                return;
+            }
+
+            try {
+                currentIssue = await GitHubAPI.getOrganization(parseInt(id));
+                currentParsed = Utils.parseIssueBody(currentIssue.body);
+                renderDetail();
+            } catch (error) {
+                document.getElementById('org-detail').innerHTML = `<div class="empty-state"><h3>Failed to load</h3><p>${Utils.escapeHtml(error.message)}</p><button class="btn btn-primary" onclick="loadOrganization()">Retry</button></div>`;
+            }
+        }
+
+        function renderDetail() {
+            const org = currentParsed.organization;
+            const alerts = currentParsed.alerts;
+            const subs = currentParsed.subscriptions;
+            const notes = currentParsed.notes;
+            const expiryDate = Utils.getEarliestExpiry(subs);
+            const hasRenewal = currentIssue.labels.nodes.some(l => l.name === CONFIG.labels.status.renewalInProgress);
+            const days = expiryDate ? Utils.remainingDays(expiryDate) : null;
+
+            const statusHtml = hasRenewal
+                ? `<span class="badge badge-info">${CONFIG.labels.status.renewalInProgress}</span>`
+                : (expiryDate ? Utils.statusBadge(expiryDate) : '<span class="badge badge-default">Unknown</span>');
+
+            const labelsHtml = currentIssue.labels.nodes
+                .filter(l => !Object.values(CONFIG.labels.status).includes(l.name))
+                .map(l => `<span class="badge badge-default">${Utils.escapeHtml(l.name)}</span>`)
+                .join(' ');
+
+            // Audit log (comments)
+            const auditComments = currentIssue.comments.nodes.filter(c =>
+                c.body.startsWith('✏️') || c.body.startsWith('🤖') || c.body.startsWith('📄') || c.body.startsWith('📧')
+            );
+            const otherComments = currentIssue.comments.nodes.filter(c =>
+                !c.body.startsWith('✏️') && !c.body.startsWith('🤖') && !c.body.startsWith('📄') && !c.body.startsWith('📧')
+            );
+
+            document.getElementById('org-detail').innerHTML = `
+                <!-- Header -->
+                <div class="page-header">
+                    <div>
+                        <div style="display:flex;align-items:center;gap:12px;">
+                            <h1 class="page-title">${Utils.escapeHtml(currentIssue.title)}</h1>
+                            ${statusHtml}
+                        </div>
+                        <p class="page-subtitle">
+                            #${currentIssue.number} · Created ${Utils.formatDate(currentIssue.createdAt)}
+                            ${days !== null ? ` · ${days > 0 ? days + ' days remaining' : Math.abs(days) + ' days overdue'}` : ''}
+                        </p>
+                    </div>
+                    <div style="display:flex;gap:8px;">
+                        <button class="btn btn-secondary" onclick="exportOrgPDF()">Export PDF ⬇</button>
+                        <a href="${currentIssue.html_url || `https://github.com/${CONFIG.owner}/${CONFIG.repo}/issues/${currentIssue.number}`}" target="_blank" class="btn btn-secondary">View on GitHub</a>
+                        <button class="btn btn-secondary" onclick="toggleEdit()">Edit</button>
+                        ${currentIssue.state === 'OPEN' ? `<button class="btn btn-danger" onclick="handleDelete()">Delete</button>` : ''}
+                    </div>
+                </div>
+
+                <div class="detail-grid">
+                    <!-- Organization Info -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">Organization Details</h3>
+                            ${labelsHtml}
+                        </div>
+                        <div class="detail-table">
+                            ${detailRow('Contact Email', org['Contact Email'])}
+                            ${detailRow('Phone', org['Phone'])}
+                            ${detailRow('Address', org['Address'])}
+                            ${detailRow('Industry', org['Industry'])}
+                            ${detailRow('Account Manager', org['Account Manager'])}
+                        </div>
+                    </div>
+
+                    <!-- Subscriptions -->
+                    ${subs.map((sub, i) => {
+                        const subExpiry = sub['Expiry Date'];
+                        const subDays = subExpiry ? Utils.remainingDays(subExpiry) : null;
+                        const subStatus = subExpiry ? Utils.statusBadge(subExpiry) : '';
+                        const heading = subs.length > 1 ? `Subscription ${i + 1}` : 'Subscription Details';
+
+                        return `
+                        <div class="card">
+                            <div class="card-header">
+                                <h3 class="card-title">${heading}</h3>
+                                ${subStatus}
+                            </div>
+                            <div class="detail-table">
+                                ${detailRow('Type', sub['Subscription Type'])}
+                                ${detailRow('Plan', sub['Plan Name'])}
+                                ${detailRow('Start Date', Utils.formatDate(sub['Start Date']))}
+                                ${detailRow('Expiry Date', Utils.formatDate(subExpiry))}
+                                ${detailRow('Remaining', subDays !== null ? (subDays > 0 ? subDays + ' days' : Math.abs(subDays) + ' days overdue') : '—')}
+                                ${detailRow('Billing Date', Utils.formatDate(sub['Billing Date']))}
+                                ${detailRow('Payment Cycle', sub['Payment Cycle'])}
+                                ${detailRow('Amount', sub['Amount'])}
+                                ${detailRow('Currency', sub['Currency'])}
+                                ${detailRow('Auto Renew', sub['Auto Renew'])}
+                            </div>
+                        </div>`;
+                    }).join('')}
+
+                    <!-- Add Subscription Button -->
+                    <div style="text-align:center;margin-bottom:16px;">
+                        <button class="btn btn-secondary" onclick="showAddSubscription()">+ Add Another Subscription</button>
+                    </div>
+
+                    <!-- Alert Settings -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">Alert Settings</h3>
+                        </div>
+                        <div class="detail-table">
+                            ${detailRow('Alerts Enabled', alerts['Alerts Enabled'] || 'Yes')}
+                            ${detailRow('Alert Days Before', alerts['Alert Days Before'] || '60')}
+                            ${detailRow('Recipients', alerts['Alert Recipients'] || '—')}
+                        </div>
+                    </div>
+
+                    <!-- Notes -->
+                    ${notes ? `
+                    <div class="card">
+                        <div class="card-header"><h3 class="card-title">Notes</h3></div>
+                        <p style="color:var(--text-secondary);white-space:pre-wrap;">${Utils.escapeHtml(notes)}</p>
+                    </div>` : ''}
+
+                    <!-- Status Actions -->
+                    <div class="card">
+                        <div class="card-header"><h3 class="card-title">Quick Actions</h3></div>
+                        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                            <button class="btn btn-sm ${hasRenewal ? 'btn-primary' : 'btn-secondary'}" onclick="setStatus('renewalInProgress')">🔄 Mark Renewal In Progress</button>
+                            <button class="btn btn-sm btn-secondary" onclick="setStatus('active')">✅ Mark Active</button>
+                            <button class="btn btn-sm btn-secondary" onclick="uploadDocument()">📄 Upload Document</button>
+                        </div>
+                        <input type="file" id="doc-file-input" accept=".pdf,.png,.jpg,.jpeg,.docx" style="display:none;" onchange="handleDocUpload(event)" />
+                    </div>
+
+                    <!-- Documents -->
+                    <div class="card">
+                        <div class="card-header"><h3 class="card-title">Documents</h3></div>
+                        <div id="documents-list">
+                            ${renderDocuments()}
+                        </div>
+                    </div>
+
+                    <!-- Audit Log -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">Audit Log</h3>
+                            <span class="badge badge-default">${currentIssue.comments.totalCount} entries</span>
+                        </div>
+                        <div id="audit-log">
+                            ${currentIssue.comments.nodes.length === 0
+                                ? '<p style="color:var(--text-muted);padding:12px 0;">No activity yet.</p>'
+                                : currentIssue.comments.nodes.map(c => `
+                                    <div class="audit-item">
+                                        <div class="audit-content">${formatCommentBody(c.body)}</div>
+                                        <div class="audit-meta">
+                                            <span>${c.author?.login || 'unknown'}</span>
+                                            <span>${Utils.timeAgo(c.createdAt)}</span>
+                                        </div>
+                                    </div>
+                                `).join('')
+                            }
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function detailRow(label, value) {
+            return `
+                <div class="detail-row">
+                    <span class="detail-label">${Utils.escapeHtml(label)}</span>
+                    <span class="detail-value">${Utils.escapeHtml(value || '—')}</span>
+                </div>`;
+        }
+
+        function formatCommentBody(body) {
+            // Simple markdown-like rendering
+            return Utils.escapeHtml(body.substring(0, 300))
+                .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+                .replace(/\n/g, '<br>');
+        }
+
+        function renderDocuments() {
+            const docComments = currentIssue.comments.nodes.filter(c => c.body.startsWith('📄'));
+            if (docComments.length === 0) {
+                return '<p style="color:var(--text-muted);padding:12px 0;">No documents uploaded yet.</p>';
+            }
+            return docComments.map(c => `
+                <div class="doc-item">
+                    <span>📄</span>
+                    <div class="doc-info">${formatCommentBody(c.body)}</div>
+                    <span class="doc-time">${Utils.timeAgo(c.createdAt)}</span>
+                </div>
+            `).join('');
+        }
+
+        // Status change
+        async function setStatus(statusKey) {
+            const label = CONFIG.labels.status[statusKey];
+            const currentLabels = currentIssue.labels.nodes.map(l => l.name);
+
+            try {
+                await GitHubAPI.updateStatusLabel(currentIssue.number, label, currentLabels);
+                await GitHubAPI.addComment(currentIssue.number,
+                    `✏️ **Status changed by ${Auth.getUserName()}** — ${Utils.formatDate(new Date().toISOString())}\n\nNew status: ${label}`
+                );
+                Toast.show('Status updated!', 'success');
+                await loadOrganization();
+            } catch (error) {
+                Toast.show('Failed to update status: ' + error.message, 'error');
+            }
+        }
+
+        // Delete
+        function handleDelete() {
+            Dialog.confirm(
+                'Delete Organization',
+                `Are you sure you want to delete "${currentIssue.title}"? This will close the GitHub issue.`,
+                async () => {
+                    try {
+                        await GitHubAPI.deleteOrganization(currentIssue.number);
+                        Toast.show('Organization deleted.', 'success');
+                        setTimeout(() => window.location.href = '../organizations/', 1500);
+                    } catch (error) {
+                        Toast.show('Failed to delete: ' + error.message, 'error');
+                    }
+                }
+            );
+        }
+
+        // Document upload
+        function uploadDocument() {
+            document.getElementById('doc-file-input').click();
+        }
+
+        async function handleDocUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            if (file.size > CONFIG.maxFileSize) {
+                Toast.show('File too large. Max 25MB.', 'error');
+                return;
+            }
+
+            Toast.show('Uploading document...', 'info');
+            try {
+                await GitHubAPI.uploadDocument(currentIssue.number, file);
+                Toast.show('Document uploaded!', 'success');
+                await loadOrganization();
+            } catch (error) {
+                Toast.show('Upload failed: ' + error.message, 'error');
+            }
+        }
+
+        // Edit toggle (redirect to GitHub for now)
+        function toggleEdit() {
+            window.open(`https://github.com/${CONFIG.owner}/${CONFIG.repo}/issues/${currentIssue.number}`, '_blank');
+        }
+
+        // Add subscription
+        function showAddSubscription() {
+            Toast.show('Redirecting to GitHub to add subscription section...', 'info');
+            window.open(`https://github.com/${CONFIG.owner}/${CONFIG.repo}/issues/${currentIssue.number}`, '_blank');
+        }
+
+        // Export PDF
+        function exportOrgPDF() {
+            Export.downloadOrgPDF(currentIssue, `${currentIssue.title.replace(/\s+/g, '-').toLowerCase()}-details.pdf`);
+        }
+    </script>
+
+    <style>
+        .detail-grid { display: flex; flex-direction: column; gap: 16px; }
+
+        .detail-table { }
+        .detail-row {
+            display: flex;
+            padding: 10px 0;
+            border-bottom: 1px solid var(--border);
+        }
+        .detail-row:last-child { border-bottom: none; }
+        .detail-label {
+            width: 180px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            font-size: 13px;
+            flex-shrink: 0;
+        }
+        .detail-value { font-size: 13px; color: var(--text); }
+
+        .audit-item {
+            padding: 12px 0;
+            border-bottom: 1px solid var(--border);
+        }
+        .audit-item:last-child { border-bottom: none; }
+        .audit-content { font-size: 13px; line-height: 1.6; }
+        .audit-meta {
+            display: flex;
+            gap: 12px;
+            margin-top: 4px;
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .doc-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            padding: 10px 0;
+            border-bottom: 1px solid var(--border);
+        }
+        .doc-item:last-child { border-bottom: none; }
+        .doc-info { flex: 1; font-size: 13px; }
+        .doc-time { font-size: 12px; color: var(--text-muted); white-space: nowrap; }
+
+        @media (max-width: 768px) {
+            .detail-row { flex-direction: column; gap: 4px; }
+            .detail-label { width: auto; }
+        }
+    </style>
+</body>
+</html>

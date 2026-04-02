@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard — Subscription Manager</title>
+    <link rel="stylesheet" href="styles/main.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Header -->
+    <header class="app-header" id="app-header"></header>
+
+    <!-- Setup Banner -->
+    <div id="setup-banner"></div>
+
+    <div class="app-layout">
+        <!-- Sidebar -->
+        <aside class="app-sidebar" id="app-nav"></aside>
+
+        <!-- Main Content -->
+        <main class="app-main" id="app-content">
+            <div id="dashboard-content">
+                <div class="loader">
+                    <div class="spinner"></div>
+                    <p>Loading dashboard...</p>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Scripts -->
+    <script src="js/config.js"></script>
+    <script src="js/utils.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/components.js"></script>
+    <script src="js/github-api.js"></script>
+    <script src="js/export.js"></script>
+    <script src="lib/html2pdf.bundle.min.js" defer></script>
+
+    <script>
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', () => {
+            Header.render([{ label: 'Dashboard' }]);
+            Nav.render('dashboard');
+            Auth.renderSetupBanner('setup-banner');
+
+            if (Auth.isAuthenticated()) {
+                onAuthReady();
+            }
+        });
+
+        // Called after authentication
+        async function onAuthReady() {
+            await loadDashboard();
+        }
+
+        // Load dashboard data
+        async function loadDashboard() {
+            const container = document.getElementById('dashboard-content');
+
+            try {
+                // Fetch metrics and organizations in parallel
+                const [metrics, orgsData] = await Promise.all([
+                    GitHubAPI.getDashboardMetrics(),
+                    GitHubAPI.getOrganizations({ first: 100 })
+                ]);
+
+                renderDashboard(metrics, orgsData.issues);
+            } catch (error) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">⚠️</div>
+                        <h3>Failed to load dashboard</h3>
+                        <p>${Utils.escapeHtml(error.message)}</p>
+                        <button class="btn btn-primary" onclick="loadDashboard()">Retry</button>
+                    </div>
+                `;
+            }
+        }
+
+        // Render dashboard
+        function renderDashboard(metrics, issues) {
+            const container = document.getElementById('dashboard-content');
+
+            // Get renewals due this month
+            const now = new Date();
+            const currentMonth = now.getMonth();
+            const currentYear = now.getFullYear();
+
+            const renewalsThisMonth = [];
+            const expiryByMonth = {};
+
+            for (const issue of issues) {
+                const parsed = Utils.parseIssueBody(issue.body);
+                const expiryDate = Utils.getEarliestExpiry(parsed.subscriptions);
+
+                if (!expiryDate) continue;
+
+                const expiry = new Date(expiryDate);
+                const monthKey = `${expiry.getFullYear()}-${String(expiry.getMonth() + 1).padStart(2, '0')}`;
+
+                // Count by month for chart
+                expiryByMonth[monthKey] = (expiryByMonth[monthKey] || 0) + 1;
+
+                // Renewals this month
+                if (expiry.getMonth() === currentMonth && expiry.getFullYear() === currentYear) {
+                    const sub = parsed.subscriptions[0] || {};
+                    renewalsThisMonth.push({
+                        number: issue.number,
+                        title: issue.title,
+                        expiryDate: expiryDate,
+                        days: Utils.remainingDays(expiryDate),
+                        amount: sub['Amount'] || '—'
+                    });
+                }
+            }
+
+            renewalsThisMonth.sort((a, b) => a.days - b.days);
+
+            // Build expiry chart data (next 6 months)
+            const chartMonths = [];
+            for (let i = 0; i < 6; i++) {
+                const d = new Date(currentYear, currentMonth + i, 1);
+                const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+                const label = d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+                chartMonths.push({ key, label, count: expiryByMonth[key] || 0 });
+            }
+
+            const maxCount = Math.max(...chartMonths.map(m => m.count), 1);
+
+            container.innerHTML = `
+                <div id="dashboard-export-area">
+                    <!-- Page Header -->
+                    <div class="page-header">
+                        <div>
+                            <h1 class="page-title">Dashboard</h1>
+                            <p class="page-subtitle">Subscription overview and insights</p>
+                        </div>
+                        <button class="btn btn-secondary" onclick="Export.downloadPDF('dashboard-export-area', 'dashboard-${Utils.formatDateApi(new Date())}.pdf')">
+                            Export PDF ⬇
+                        </button>
+                    </div>
+
+                    <!-- Metric Cards -->
+                    <div class="metrics-grid">
+                        ${MetricCard.render('Total Organizations', metrics.total, 'default', '🏢')}
+                        ${MetricCard.render('Active', metrics.active, 'success', '✅')}
+                        ${MetricCard.render('Expiring Soon', metrics.expiring, 'warning', '⚠️')}
+                        ${MetricCard.render('Expired', metrics.expired, 'error', '❌')}
+                    </div>
+
+                    <!-- Expiry Timeline -->
+                    <div class="card" style="margin-bottom: 24px;">
+                        <div class="card-header">
+                            <h3 class="card-title">Expiry Timeline (Next 6 Months)</h3>
+                        </div>
+                        <div class="chart-container">
+                            ${chartMonths.map(m => `
+                                <div class="chart-bar-row">
+                                    <span class="chart-label">${m.label}</span>
+                                    <div class="chart-bar-track">
+                                        <div class="chart-bar" style="width: ${(m.count / maxCount) * 100}%"></div>
+                                    </div>
+                                    <span class="chart-value">${m.count}</span>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+
+                    <!-- Renewals Due This Month -->
+                    <div class="card" style="margin-bottom: 24px;">
+                        <div class="card-header">
+                            <h3 class="card-title">Renewals Due This Month</h3>
+                            <span class="badge badge-warning">${renewalsThisMonth.length} organizations</span>
+                        </div>
+                        ${renewalsThisMonth.length > 0 ? `
+                            <div class="table-container">
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th>Organization</th>
+                                            <th>Expiry Date</th>
+                                            <th>Days Left</th>
+                                            <th>Amount</th>
+                                            <th>Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${renewalsThisMonth.map(r => `
+                                            <tr onclick="window.location.href='${CONFIG.baseUrl}/organization/?id=${r.number}'">
+                                                <td><strong>${Utils.escapeHtml(r.title)}</strong></td>
+                                                <td>${Utils.formatDate(r.expiryDate)}</td>
+                                                <td>${r.days <= 0
+                                                    ? `<span class="badge badge-error">${r.days} days</span>`
+                                                    : `<span class="badge badge-warning">${r.days} days</span>`
+                                                }</td>
+                                                <td>${Utils.escapeHtml(r.amount)}</td>
+                                                <td><a href="${CONFIG.baseUrl}/organization/?id=${r.number}" class="btn btn-text btn-sm">View</a></td>
+                                            </tr>
+                                        `).join('')}
+                                    </tbody>
+                                </table>
+                            </div>
+                        ` : `
+                            <div class="empty-state" style="padding: 24px;">
+                                <p>No renewals due this month.</p>
+                            </div>
+                        `}
+                    </div>
+                </div>
+
+                <!-- Recent Activity -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Recent Activity</h3>
+                    </div>
+                    <div id="recent-activity">
+                        <div class="loader"><div class="spinner"></div></div>
+                    </div>
+                </div>
+            `;
+
+            // Load recent activity async
+            loadRecentActivity();
+        }
+
+        // Load recent activity
+        async function loadRecentActivity() {
+            const container = document.getElementById('recent-activity');
+            try {
+                const activities = await GitHubAPI.getRecentActivity(10);
+
+                if (activities.length === 0) {
+                    container.innerHTML = '<div class="empty-state" style="padding: 24px;"><p>No recent activity.</p></div>';
+                    return;
+                }
+
+                container.innerHTML = `
+                    <div class="activity-list">
+                        ${activities.map(a => `
+                            <div class="activity-item">
+                                <div class="activity-content">
+                                    <a href="${CONFIG.baseUrl}/organization/?id=${a.issueNumber}" class="activity-org">${Utils.escapeHtml(a.issueTitle)}</a>
+                                    <p class="activity-text">${Utils.escapeHtml(a.comment)}</p>
+                                </div>
+                                <span class="activity-time">${Utils.timeAgo(a.createdAt)}</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            } catch (error) {
+                container.innerHTML = '<p class="text-muted" style="padding: 16px;">Failed to load activity.</p>';
+            }
+        }
+    </script>
+
+    <style>
+        /* Dashboard-specific styles */
+        .chart-container { padding: 8px 0; }
+        .chart-bar-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 6px 0;
+        }
+        .chart-label { width: 80px; font-size: 13px; color: var(--text-secondary); text-align: right; }
+        .chart-bar-track { flex: 1; height: 24px; background: var(--bg); border-radius: 4px; overflow: hidden; }
+        .chart-bar {
+            height: 100%;
+            background: var(--brand);
+            border-radius: 4px;
+            min-width: 4px;
+            transition: width 0.5s ease;
+        }
+        .chart-value { width: 30px; font-size: 13px; font-weight: 700; color: var(--text); }
+
+        .activity-list { }
+        .activity-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            padding: 12px 0;
+            border-bottom: 1px solid var(--border);
+        }
+        .activity-item:last-child { border-bottom: none; }
+        .activity-org { font-weight: 600; font-size: 13px; }
+        .activity-text { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+        .activity-time { font-size: 12px; color: var(--text-muted); white-space: nowrap; }
+    </style>
+</body>
+</html>

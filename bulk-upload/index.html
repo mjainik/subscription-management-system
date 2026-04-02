@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bulk Upload — Subscription Manager</title>
+    <link rel="stylesheet" href="../styles/main.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <header class="app-header" id="app-header"></header>
+    <div id="setup-banner"></div>
+
+    <div class="app-layout">
+        <aside class="app-sidebar" id="app-nav"></aside>
+        <main class="app-main">
+            <div class="page-header">
+                <div>
+                    <h1 class="page-title">Bulk Upload</h1>
+                    <p class="page-subtitle">Upload a CSV file to create multiple organizations at once</p>
+                </div>
+                <a href="../templates/bulk-upload-template.csv" download class="btn btn-secondary">Download CSV Template</a>
+            </div>
+
+            <!-- Upload Area -->
+            <div class="card" id="upload-section">
+                <div class="file-upload-area" id="csv-drop-zone">
+                    <div class="file-upload-icon">📁</div>
+                    <p class="file-upload-text">Upload CSV file</p>
+                    <p class="file-upload-hint">Drop file here or click to browse</p>
+                    <p class="file-upload-formats">Max 100 rows per file</p>
+                    <input type="file" id="csv-input" accept=".csv" style="display:none" />
+                </div>
+            </div>
+
+            <!-- Preview Table (hidden by default) -->
+            <div id="preview-section" style="display:none;">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Preview (<span id="preview-count">0</span> organizations)</h3>
+                        <div style="display:flex;gap:8px;">
+                            <button class="btn btn-secondary" onclick="cancelUpload()">Cancel</button>
+                            <button class="btn btn-primary" id="create-all-btn" onclick="createAll()">Create All</button>
+                        </div>
+                    </div>
+                    <div id="preview-errors" style="display:none;" class="error-message"></div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Row</th>
+                                    <th>Org Name</th>
+                                    <th>Email</th>
+                                    <th>Type</th>
+                                    <th>Start Date</th>
+                                    <th>Expiry Date</th>
+                                    <th>Amount</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="preview-tbody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Progress (hidden by default) -->
+            <div id="progress-section" style="display:none;">
+                <div class="card" style="text-align:center;padding:32px;">
+                    <h3 id="progress-title">Creating organizations...</h3>
+                    <div class="progress-bar-container">
+                        <div class="progress-bar" id="progress-bar" style="width:0%"></div>
+                    </div>
+                    <p id="progress-text">0 / 0</p>
+                </div>
+            </div>
+
+            <!-- Results (hidden by default) -->
+            <div id="results-section" style="display:none;">
+                <div class="card success-state">
+                    <div class="success-state-icon">✅</div>
+                    <h2 id="results-title">Upload Complete</h2>
+                    <p id="results-text"></p>
+                    <div style="margin-top:16px;">
+                        <a href="../organizations/" class="btn btn-primary">View Organizations</a>
+                        <button class="btn btn-secondary" onclick="resetBulk()">Upload Another</button>
+                    </div>
+                    <div id="results-errors" style="display:none;margin-top:16px;text-align:left;"></div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="../js/config.js"></script>
+    <script src="../js/utils.js"></script>
+    <script src="../js/auth.js"></script>
+    <script src="../js/components.js"></script>
+    <script src="../js/github-api.js"></script>
+
+    <script>
+        let parsedRows = [];
+
+        document.addEventListener('DOMContentLoaded', () => {
+            Header.render([{ label: 'Bulk Upload' }]);
+            Nav.render('bulk-upload');
+            Auth.renderSetupBanner('setup-banner');
+
+            const dropZone = document.getElementById('csv-drop-zone');
+            const input = document.getElementById('csv-input');
+
+            dropZone.addEventListener('click', () => input.click());
+            input.addEventListener('change', (e) => { if (e.target.files[0]) handleCSV(e.target.files[0]); });
+            dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('file-upload-drag'); });
+            dropZone.addEventListener('dragleave', () => dropZone.classList.remove('file-upload-drag'));
+            dropZone.addEventListener('drop', (e) => { e.preventDefault(); dropZone.classList.remove('file-upload-drag'); if (e.dataTransfer.files[0]) handleCSV(e.dataTransfer.files[0]); });
+        });
+
+        function onAuthReady() {}
+
+        function handleCSV(file) {
+            if (!file.name.endsWith('.csv')) {
+                Toast.show('Please upload a CSV file.', 'error');
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const text = e.target.result;
+                parseCSV(text);
+            };
+            reader.readAsText(file);
+        }
+
+        function parseCSV(text) {
+            const lines = text.trim().split('\n');
+            if (lines.length < 2) {
+                Toast.show('CSV file is empty or has no data rows.', 'error');
+                return;
+            }
+
+            const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+            parsedRows = [];
+            const errors = [];
+
+            for (let i = 1; i < lines.length && i <= CONFIG.maxBulkRows; i++) {
+                const values = parseCSVLine(lines[i]);
+                const row = {};
+                headers.forEach((h, idx) => row[h] = (values[idx] || '').trim());
+
+                // Validate
+                const rowErrors = [];
+                if (!row['Organization Name']) rowErrors.push('Missing name');
+                if (row['Expiry Date'] && row['Start Date'] && !Utils.isExpiryAfterStart(row['Start Date'], row['Expiry Date'])) {
+                    rowErrors.push('Expiry before start');
+                }
+
+                parsedRows.push({ ...row, _row: i, _errors: rowErrors });
+            }
+
+            if (lines.length - 1 > CONFIG.maxBulkRows) {
+                Toast.show(`Only first ${CONFIG.maxBulkRows} rows will be processed.`, 'warning');
+            }
+
+            showPreview();
+        }
+
+        function parseCSVLine(line) {
+            const result = [];
+            let current = '';
+            let inQuotes = false;
+            for (const char of line) {
+                if (char === '"') { inQuotes = !inQuotes; continue; }
+                if (char === ',' && !inQuotes) { result.push(current); current = ''; continue; }
+                current += char;
+            }
+            result.push(current);
+            return result;
+        }
+
+        function showPreview() {
+            document.getElementById('upload-section').style.display = 'none';
+            document.getElementById('preview-section').style.display = 'block';
+            document.getElementById('preview-count').textContent = parsedRows.length;
+
+            const errorRows = parsedRows.filter(r => r._errors.length > 0);
+            const errorsEl = document.getElementById('preview-errors');
+            if (errorRows.length > 0) {
+                errorsEl.style.display = 'block';
+                errorsEl.textContent = `${errorRows.length} rows have errors. They will be skipped.`;
+            }
+
+            document.getElementById('preview-tbody').innerHTML = parsedRows.map(r => `
+                <tr style="${r._errors.length ? 'background:var(--error-bg);' : ''}">
+                    <td>${r._row}</td>
+                    <td>${Utils.escapeHtml(r['Organization Name'] || '—')}</td>
+                    <td>${Utils.escapeHtml(r['Contact Email'] || '—')}</td>
+                    <td>${Utils.escapeHtml(r['Subscription Type'] || '—')}</td>
+                    <td>${Utils.escapeHtml(r['Start Date'] || '—')}</td>
+                    <td>${Utils.escapeHtml(r['Expiry Date'] || '—')}</td>
+                    <td>${Utils.escapeHtml(r['Amount'] || '—')}</td>
+                    <td>${r._errors.length ? `<span class="badge badge-error">${r._errors.join(', ')}</span>` : '<span class="badge badge-success">OK</span>'}</td>
+                </tr>
+            `).join('');
+        }
+
+        async function createAll() {
+            const validRows = parsedRows.filter(r => r._errors.length === 0);
+            if (validRows.length === 0) {
+                Toast.show('No valid rows to create.', 'error');
+                return;
+            }
+
+            document.getElementById('preview-section').style.display = 'none';
+            document.getElementById('progress-section').style.display = 'block';
+
+            let success = 0;
+            let failed = 0;
+            const failedRows = [];
+
+            for (let i = 0; i < validRows.length; i++) {
+                const row = validRows[i];
+                const pct = Math.round(((i + 1) / validRows.length) * 100);
+                document.getElementById('progress-bar').style.width = pct + '%';
+                document.getElementById('progress-text').textContent = `${i + 1} / ${validRows.length}`;
+
+                try {
+                    const orgData = {
+                        name: row['Organization Name'],
+                        email: row['Contact Email'] || '',
+                        phone: row['Phone'] || '',
+                        address: '',
+                        industry: row['Industry'] || '',
+                        accountManager: row['Account Manager'] || ''
+                    };
+                    const subData = {
+                        type: row['Subscription Type'] || 'Annual',
+                        planName: row['Plan Name'] || '',
+                        startDate: row['Start Date'] || '',
+                        expiryDate: row['Expiry Date'] || '',
+                        billingDate: row['Billing Date'] || row['Start Date'] || '',
+                        paymentCycle: row['Payment Cycle'] || row['Subscription Type'] || '',
+                        amount: row['Amount'] ? '$' + row['Amount'] : '',
+                        currency: 'USD',
+                        autoRenew: 'No'
+                    };
+                    const alertData = { enabled: 'Yes', daysBefore: '60', recipients: '' };
+
+                    const body = Utils.buildIssueBody(orgData, [subData], alertData, '');
+                    const status = subData.expiryDate ? Utils.getStatus(subData.expiryDate) : 'active';
+                    const statusLabel = Utils.getStatusLabel(status);
+                    const labels = [statusLabel];
+                    if (subData.type) labels.push(subData.type);
+
+                    let milestone = null;
+                    if (subData.expiryDate) {
+                        try { milestone = await GitHubAPI.getOrCreateMilestone(Utils.getMilestoneName(subData.expiryDate)); } catch(e) {}
+                    }
+
+                    await GitHubAPI.createOrganization(orgData.name, body, labels, milestone);
+                    success++;
+                } catch (error) {
+                    failed++;
+                    failedRows.push({ row: row._row, name: row['Organization Name'], error: error.message });
+                }
+
+                // Rate limit: slight delay between API calls
+                if (i < validRows.length - 1) {
+                    await new Promise(r => setTimeout(r, 500));
+                }
+            }
+
+            showResults(success, failed, failedRows);
+        }
+
+        function showResults(success, failed, failedRows) {
+            document.getElementById('progress-section').style.display = 'none';
+            document.getElementById('results-section').style.display = 'block';
+            document.getElementById('results-title').textContent = failed === 0 ? 'Upload Complete!' : 'Upload Finished with Errors';
+            document.getElementById('results-text').textContent = `${success} created successfully, ${failed} failed.`;
+
+            if (failedRows.length > 0) {
+                const errEl = document.getElementById('results-errors');
+                errEl.style.display = 'block';
+                errEl.innerHTML = `
+                    <h4>Failed Rows:</h4>
+                    <table style="width:100%;font-size:13px;border-collapse:collapse;margin-top:8px;">
+                        <thead><tr><th style="text-align:left;padding:6px;">Row</th><th style="text-align:left;padding:6px;">Name</th><th style="text-align:left;padding:6px;">Error</th></tr></thead>
+                        <tbody>${failedRows.map(r => `<tr><td style="padding:6px;">${r.row}</td><td style="padding:6px;">${Utils.escapeHtml(r.name)}</td><td style="padding:6px;color:var(--error);">${Utils.escapeHtml(r.error)}</td></tr>`).join('')}</tbody>
+                    </table>`;
+            }
+        }
+
+        function cancelUpload() {
+            document.getElementById('preview-section').style.display = 'none';
+            document.getElementById('upload-section').style.display = 'block';
+            parsedRows = [];
+        }
+
+        function resetBulk() {
+            document.getElementById('results-section').style.display = 'none';
+            document.getElementById('upload-section').style.display = 'block';
+            document.getElementById('csv-input').value = '';
+            parsedRows = [];
+        }
+    </script>
+
+    <style>
+        .progress-bar-container {
+            width: 100%;
+            height: 24px;
+            background: var(--bg);
+            border-radius: 12px;
+            overflow: hidden;
+            margin: 16px 0 8px;
+        }
+        .progress-bar {
+            height: 100%;
+            background: var(--brand);
+            border-radius: 12px;
+            transition: width 0.3s ease;
+        }
+    </style>
+</body>
+</html>

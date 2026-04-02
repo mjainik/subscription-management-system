@@ -1,0 +1,34 @@
+name: Daily Status Update & Expiry Alerts
+on:
+  schedule:
+    - cron: '0 8 * * *'  # Daily at 8:00 AM UTC
+  workflow_dispatch:       # Manual trigger
+
+jobs:
+  update-and-alert:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+      - run: npm ci
+
+      # Step 1: Auto-update status labels
+      - name: Update status labels
+        run: node scripts/update-status-labels.js
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Step 2: Send email alerts
+      - name: Send expiry alerts
+        run: node scripts/check-expiry-and-email.js
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          ALERT_RECIPIENTS: ${{ secrets.ALERT_RECIPIENTS }}

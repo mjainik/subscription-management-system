@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Create Organization — Subscription Manager</title>
+    <link rel="stylesheet" href="../styles/main.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="../lib/pdf.min.js" defer></script>
+</head>
+<body>
+    <!-- Header -->
+    <header class="app-header" id="app-header"></header>
+
+    <!-- Setup Banner -->
+    <div id="setup-banner"></div>
+
+    <div class="app-layout">
+        <!-- Sidebar -->
+        <aside class="app-sidebar" id="app-nav"></aside>
+
+        <!-- Main Content -->
+        <main class="app-main">
+            <div id="create-content">
+                <!-- Form -->
+                <div id="create-form-container">
+                    <div class="page-header">
+                        <div>
+                            <h1 class="page-title">Create Organization</h1>
+                            <p class="page-subtitle">Upload an invoice to auto-fill or enter details manually</p>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <!-- File Upload Section -->
+                        <div id="file-upload-section"></div>
+
+                        <div id="extract-message" style="display:none;" class="extract-message"></div>
+
+                        <div class="form-divider">OR fill manually</div>
+
+                        <!-- Organization Details -->
+                        <h3 class="section-title">Organization Details</h3>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="org-name">Organization Name *</label>
+                                <input type="text" id="org-name" placeholder="e.g., Acme Corp" required />
+                                <div class="form-error" id="org-name-error"></div>
+                            </div>
+                            <div class="form-group">
+                                <label for="org-email">Contact Email *</label>
+                                <input type="email" id="org-email" placeholder="e.g., contact@acme.com" required />
+                                <div class="form-error" id="org-email-error"></div>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="org-phone">Phone</label>
+                                <input type="tel" id="org-phone" placeholder="e.g., +1-555-0100" />
+                            </div>
+                            <div class="form-group">
+                                <label for="org-industry">Industry</label>
+                                <select id="org-industry">
+                                    <option value="">Select industry</option>
+                                    <option value="Technology">Technology</option>
+                                    <option value="Healthcare">Healthcare</option>
+                                    <option value="Finance">Finance</option>
+                                    <option value="Education">Education</option>
+                                    <option value="Manufacturing">Manufacturing</option>
+                                    <option value="Retail">Retail</option>
+                                    <option value="Real Estate">Real Estate</option>
+                                    <option value="Consulting">Consulting</option>
+                                    <option value="Other">Other</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="org-address">Address</label>
+                                <input type="text" id="org-address" placeholder="e.g., 123 Main St, NY" />
+                            </div>
+                            <div class="form-group">
+                                <label for="org-manager">Account Manager</label>
+                                <input type="text" id="org-manager" placeholder="e.g., @username" />
+                            </div>
+                        </div>
+
+                        <!-- Subscription Details -->
+                        <h3 class="section-title" style="margin-top: 24px;">Subscription Details</h3>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="sub-type">Subscription Type *</label>
+                                <select id="sub-type" required>
+                                    <option value="">Select type</option>
+                                    <option value="Annual">Annual</option>
+                                    <option value="Monthly">Monthly</option>
+                                    <option value="Quarterly">Quarterly</option>
+                                </select>
+                                <div class="form-error" id="sub-type-error"></div>
+                            </div>
+                            <div class="form-group">
+                                <label for="sub-plan">Plan Name</label>
+                                <input type="text" id="sub-plan" placeholder="e.g., Enterprise, Pro, Basic" />
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="sub-start">Start Date *</label>
+                                <input type="date" id="sub-start" required />
+                                <div class="form-error" id="sub-start-error"></div>
+                            </div>
+                            <div class="form-group">
+                                <label for="sub-expiry">Expiry Date *</label>
+                                <input type="date" id="sub-expiry" required />
+                                <div class="form-error" id="sub-expiry-error"></div>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="sub-billing">Billing Date</label>
+                                <input type="date" id="sub-billing" />
+                            </div>
+                            <div class="form-group">
+                                <label for="sub-cycle">Payment Cycle</label>
+                                <select id="sub-cycle">
+                                    <option value="">Select cycle</option>
+                                    <option value="Monthly">Monthly</option>
+                                    <option value="Quarterly">Quarterly</option>
+                                    <option value="Annual">Annual</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="sub-amount">Amount</label>
+                                <input type="number" id="sub-amount" placeholder="e.g., 12000" min="0" step="0.01" />
+                            </div>
+                            <div class="form-group">
+                                <label for="sub-currency">Currency</label>
+                                <select id="sub-currency">
+                                    <option value="USD">USD</option>
+                                    <option value="EUR">EUR</option>
+                                    <option value="GBP">GBP</option>
+                                    <option value="INR">INR</option>
+                                    <option value="AUD">AUD</option>
+                                    <option value="CAD">CAD</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Priority -->
+                        <h3 class="section-title" style="margin-top: 24px;">Priority</h3>
+                        <div class="priority-pills">
+                            <button type="button" class="pill-btn" data-value="🔴 Urgent" onclick="selectPriority(this)">🔴 Urgent</button>
+                            <button type="button" class="pill-btn" data-value="🟠 High" onclick="selectPriority(this)">🟠 High</button>
+                            <button type="button" class="pill-btn pill-active" data-value="🔵 Normal" onclick="selectPriority(this)">🔵 Normal</button>
+                            <button type="button" class="pill-btn" data-value="🟢 Low" onclick="selectPriority(this)">🟢 Low</button>
+                        </div>
+                        <input type="hidden" id="sub-priority" value="🔵 Normal" />
+
+                        <!-- Alert Settings -->
+                        <h3 class="section-title" style="margin-top: 24px;">Alert Settings</h3>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="alert-enabled">Alerts Enabled</label>
+                                <select id="alert-enabled">
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="alert-days">Alert Days Before Expiry</label>
+                                <select id="alert-days">
+                                    <option value="30">30 days</option>
+                                    <option value="60" selected>60 days</option>
+                                    <option value="90">90 days</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="alert-recipients">Alert Recipients</label>
+                            <input type="text" id="alert-recipients" placeholder="e.g., team@company.com, manager@company.com" />
+                            <small>Comma-separated email addresses</small>
+                        </div>
+
+                        <!-- Notes -->
+                        <h3 class="section-title" style="margin-top: 24px;">Notes</h3>
+                        <div class="form-group">
+                            <textarea id="org-notes" placeholder="Additional notes about the organization..."></textarea>
+                        </div>
+
+                        <!-- Actions -->
+                        <div class="form-actions">
+                            <button class="btn btn-primary btn-lg" id="create-btn" onclick="handleCreate()">
+                                Create Organization
+                            </button>
+                            <a href="../" class="btn btn-text">Cancel</a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Success State (hidden by default) -->
+                <div id="create-success" style="display:none;">
+                    <div class="card success-state">
+                        <div class="success-state-icon">✅</div>
+                        <h2>Organization Created!</h2>
+                        <p id="success-message"></p>
+                        <div style="margin-top: 16px;">
+                            <a id="success-link" href="#" target="_blank" class="btn btn-primary">View on GitHub</a>
+                            <a id="success-app-link" href="#" class="btn btn-secondary">View in App</a>
+                            <button class="btn btn-text" onclick="resetForm()">Create Another</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Scripts -->
+    <script src="../js/config.js"></script>
+    <script src="../js/utils.js"></script>
+    <script src="../js/auth.js"></script>
+    <script src="../js/components.js"></script>
+    <script src="../js/github-api.js"></script>
+    <script src="../js/pdf-parser.js"></script>
+
+    <script>
+        let uploadedFile = null;
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            Header.render([
+                { label: 'Organizations', url: `${CONFIG.baseUrl}/organizations/` },
+                { label: 'Create' }
+            ]);
+            Nav.render('create');
+            Auth.renderSetupBanner('setup-banner');
+
+            // Initialize file upload
+            FileUpload.render('file-upload-section', handleFileUpload);
+
+            // Set pdf.js worker path
+            if (typeof pdfjsLib !== 'undefined') {
+                pdfjsLib.GlobalWorkerOptions.workerSrc = '../lib/pdf.worker.min.js';
+            }
+        });
+
+        // Called after auth setup
+        function onAuthReady() {
+            // Form is ready, no additional data to load
+        }
+
+        // Handle file upload and extraction
+        async function handleFileUpload(file) {
+            uploadedFile = file;
+
+            // Check if pdf.js is loaded
+            if (typeof pdfjsLib === 'undefined' && file.type === 'application/pdf') {
+                FileUpload.updateStatus('PDF parser not loaded', 'error');
+                showExtractMessage('PDF parser library not loaded. Please fill the form manually.', 'warning');
+                return;
+            }
+
+            FileUpload.updateStatus('Extracting...', 'info');
+
+            const result = await PdfParser.processFile(file);
+
+            if (result.success) {
+                FileUpload.updateStatus('✅ Extracted', 'success');
+                showExtractMessage(result.message, 'success');
+                fillFormFromExtracted(result.data);
+            } else {
+                FileUpload.updateStatus('Manual entry needed', 'error');
+                showExtractMessage(result.message, 'warning');
+            }
+        }
+
+        // Show extraction message
+        function showExtractMessage(message, type) {
+            const el = document.getElementById('extract-message');
+            el.style.display = 'block';
+            el.className = `extract-message extract-${type}`;
+            el.textContent = message;
+        }
+
+        // Fill form fields from extracted data
+        function fillFormFromExtracted(data) {
+            if (data.orgName) document.getElementById('org-name').value = data.orgName;
+            if (data.email) document.getElementById('org-email').value = data.email;
+            if (data.phone) document.getElementById('org-phone').value = data.phone;
+            if (data.startDate) document.getElementById('sub-start').value = data.startDate;
+            if (data.expiryDate) document.getElementById('sub-expiry').value = data.expiryDate;
+            if (data.billingDate) document.getElementById('sub-billing').value = data.billingDate;
+            if (data.amount) document.getElementById('sub-amount').value = data.amount;
+
+            if (data.paymentCycle) {
+                const cycleSelect = document.getElementById('sub-cycle');
+                for (const opt of cycleSelect.options) {
+                    if (opt.value.toLowerCase() === data.paymentCycle.toLowerCase()) {
+                        cycleSelect.value = opt.value;
+                        break;
+                    }
+                }
+
+                // Also set subscription type based on cycle
+                const typeSelect = document.getElementById('sub-type');
+                for (const opt of typeSelect.options) {
+                    if (opt.value.toLowerCase() === data.paymentCycle.toLowerCase()) {
+                        typeSelect.value = opt.value;
+                        break;
+                    }
+                }
+            }
+
+            // Highlight auto-filled fields
+            const fields = ['org-name', 'org-email', 'org-phone', 'sub-start', 'sub-expiry', 'sub-billing', 'sub-amount'];
+            for (const id of fields) {
+                const el = document.getElementById(id);
+                if (el && el.value) {
+                    el.style.borderColor = '#16A34A';
+                    el.style.backgroundColor = '#F0FDF4';
+                    setTimeout(() => {
+                        el.style.borderColor = '';
+                        el.style.backgroundColor = '';
+                    }, 3000);
+                }
+            }
+        }
+
+        // Priority pill selection
+        function selectPriority(btn) {
+            document.querySelectorAll('.pill-btn').forEach(b => b.classList.remove('pill-active'));
+            btn.classList.add('pill-active');
+            document.getElementById('sub-priority').value = btn.dataset.value;
+        }
+
+        // Validate form
+        function validateForm() {
+            let valid = true;
+
+            // Clear errors
+            document.querySelectorAll('.form-error').forEach(el => el.textContent = '');
+
+            // Org name
+            const name = document.getElementById('org-name').value.trim();
+            if (!name) {
+                document.getElementById('org-name-error').textContent = 'Organization name is required.';
+                valid = false;
+            } else if (name.length < 2 || name.length > 200) {
+                document.getElementById('org-name-error').textContent = 'Name must be 2-200 characters.';
+                valid = false;
+            }
+
+            // Email
+            const email = document.getElementById('org-email').value.trim();
+            if (!email) {
+                document.getElementById('org-email-error').textContent = 'Contact email is required.';
+                valid = false;
+            } else if (!Utils.isValidEmail(email)) {
+                document.getElementById('org-email-error').textContent = 'Invalid email format.';
+                valid = false;
+            }
+
+            // Subscription type
+            if (!document.getElementById('sub-type').value) {
+                document.getElementById('sub-type-error').textContent = 'Subscription type is required.';
+                valid = false;
+            }
+
+            // Start date
+            const startDate = document.getElementById('sub-start').value;
+            if (!startDate) {
+                document.getElementById('sub-start-error').textContent = 'Start date is required.';
+                valid = false;
+            }
+
+            // Expiry date
+            const expiryDate = document.getElementById('sub-expiry').value;
+            if (!expiryDate) {
+                document.getElementById('sub-expiry-error').textContent = 'Expiry date is required.';
+                valid = false;
+            } else if (startDate && !Utils.isExpiryAfterStart(startDate, expiryDate)) {
+                document.getElementById('sub-expiry-error').textContent = 'Expiry date must be after start date.';
+                valid = false;
+            }
+
+            return valid;
+        }
+
+        // Handle form submission
+        async function handleCreate() {
+            if (!validateForm()) return;
+
+            const btn = document.getElementById('create-btn');
+            btn.disabled = true;
+            btn.textContent = 'Creating...';
+
+            try {
+                // Gather form data
+                const orgData = {
+                    name: document.getElementById('org-name').value.trim(),
+                    email: document.getElementById('org-email').value.trim(),
+                    phone: document.getElementById('org-phone').value.trim(),
+                    address: document.getElementById('org-address').value.trim(),
+                    industry: document.getElementById('org-industry').value,
+                    accountManager: document.getElementById('org-manager').value.trim()
+                };
+
+                const subData = {
+                    type: document.getElementById('sub-type').value,
+                    planName: document.getElementById('sub-plan').value.trim(),
+                    startDate: document.getElementById('sub-start').value,
+                    expiryDate: document.getElementById('sub-expiry').value,
+                    billingDate: document.getElementById('sub-billing').value || document.getElementById('sub-start').value,
+                    paymentCycle: document.getElementById('sub-cycle').value || document.getElementById('sub-type').value,
+                    amount: document.getElementById('sub-amount').value ? '$' + document.getElementById('sub-amount').value : '',
+                    currency: document.getElementById('sub-currency').value,
+                    autoRenew: 'No'
+                };
+
+                const alertData = {
+                    enabled: document.getElementById('alert-enabled').value,
+                    daysBefore: document.getElementById('alert-days').value,
+                    recipients: document.getElementById('alert-recipients').value.trim()
+                };
+
+                const notes = document.getElementById('org-notes').value.trim();
+
+                // Build issue body
+                const body = Utils.buildIssueBody(orgData, [subData], alertData, notes);
+
+                // Determine labels
+                const status = Utils.getStatus(subData.expiryDate);
+                const statusLabel = Utils.getStatusLabel(status);
+                const priority = document.getElementById('sub-priority').value;
+                const labels = [statusLabel, subData.type, priority];
+
+                // Get or create milestone
+                const milestoneName = Utils.getMilestoneName(subData.expiryDate);
+                let milestoneNumber = null;
+                try {
+                    milestoneNumber = await GitHubAPI.getOrCreateMilestone(milestoneName);
+                } catch (e) {
+                    console.warn('Could not create milestone:', e);
+                }
+
+                // Determine assignees
+                const assignees = [];
+                if (orgData.accountManager && orgData.accountManager.startsWith('@')) {
+                    assignees.push(orgData.accountManager.replace('@', ''));
+                }
+
+                // Create the issue
+                const issue = await GitHubAPI.createOrganization(
+                    orgData.name,
+                    body,
+                    labels,
+                    milestoneNumber,
+                    assignees
+                );
+
+                // Upload document if one was selected
+                if (uploadedFile) {
+                    try {
+                        await GitHubAPI.uploadDocument(issue.number, uploadedFile);
+                    } catch (e) {
+                        console.warn('Document upload failed:', e);
+                        Toast.show('Organization created but document upload failed. You can upload it later.', 'warning');
+                    }
+                }
+
+                // Show success
+                showSuccess(issue);
+
+            } catch (error) {
+                Toast.show('Failed to create organization: ' + error.message, 'error');
+                btn.disabled = false;
+                btn.textContent = 'Create Organization';
+            }
+        }
+
+        // Show success state
+        function showSuccess(issue) {
+            document.getElementById('create-form-container').style.display = 'none';
+            document.getElementById('create-success').style.display = 'block';
+            document.getElementById('success-message').textContent = `"${issue.title}" has been created successfully.`;
+            document.getElementById('success-link').href = issue.html_url;
+            document.getElementById('success-app-link').href = `${CONFIG.baseUrl}/organization/?id=${issue.number}`;
+        }
+
+        // Reset form for another creation
+        function resetForm() {
+            document.getElementById('create-form-container').style.display = 'block';
+            document.getElementById('create-success').style.display = 'none';
+
+            // Clear all form fields
+            document.querySelectorAll('input:not([type="hidden"]), textarea, select').forEach(el => {
+                if (el.id === 'sub-currency') { el.value = 'USD'; return; }
+                if (el.id === 'alert-enabled') { el.value = 'Yes'; return; }
+                if (el.id === 'alert-days') { el.value = '60'; return; }
+                if (el.tagName === 'SELECT') { el.selectedIndex = 0; return; }
+                el.value = '';
+            });
+
+            // Reset priority
+            document.querySelectorAll('.pill-btn').forEach(b => b.classList.remove('pill-active'));
+            document.querySelector('[data-value="🔵 Normal"]').classList.add('pill-active');
+            document.getElementById('sub-priority').value = '🔵 Normal';
+
+            // Reset file upload
+            FileUpload.clear();
+            uploadedFile = null;
+            document.getElementById('extract-message').style.display = 'none';
+
+            // Clear errors
+            document.querySelectorAll('.form-error').forEach(el => el.textContent = '');
+
+            // Reset button
+            const btn = document.getElementById('create-btn');
+            btn.disabled = false;
+            btn.textContent = 'Create Organization';
+
+            window.scrollTo(0, 0);
+        }
+    </script>
+
+    <style>
+        .section-title {
+            font-size: 15px;
+            font-weight: 700;
+            color: var(--text);
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .priority-pills {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .pill-btn {
+            padding: 8px 16px;
+            border: 1.5px solid var(--border);
+            border-radius: 20px;
+            background: var(--bg-white);
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s;
+            font-family: inherit;
+        }
+
+        .pill-btn:hover { border-color: var(--brand); }
+
+        .pill-active {
+            background: var(--brand);
+            color: white;
+            border-color: var(--brand);
+        }
+
+        .form-actions {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-top: 24px;
+            padding-top: 20px;
+            border-top: 1px solid var(--border);
+        }
+
+        .extract-message {
+            padding: 10px 14px;
+            border-radius: var(--radius-sm);
+            font-size: 13px;
+            margin: 12px 0;
+        }
+
+        .extract-success { background: var(--success-bg); color: var(--success); }
+        .extract-warning { background: var(--warning-bg); color: #B45309; }
+        .extract-error { background: var(--error-bg); color: var(--error); }
+    </style>
+</body>
+</html>

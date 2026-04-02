@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Organizations — Subscription Manager</title>
+    <link rel="stylesheet" href="../styles/main.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <header class="app-header" id="app-header"></header>
+    <div id="setup-banner"></div>
+
+    <div class="app-layout">
+        <aside class="app-sidebar" id="app-nav"></aside>
+
+        <main class="app-main">
+            <div class="page-header">
+                <div>
+                    <h1 class="page-title">Organizations</h1>
+                    <p class="page-subtitle" id="org-count"></p>
+                </div>
+                <div style="display:flex; gap:8px;">
+                    <button class="btn btn-secondary" id="export-csv-btn" onclick="handleExportCSV()" style="display:none;">Export CSV ⬇</button>
+                    <button class="btn btn-secondary" id="export-pdf-btn" onclick="Export.downloadPDF('org-table-area', 'organizations-' + Utils.formatDateApi(new Date()) + '.pdf')" style="display:none;">Export PDF ⬇</button>
+                    <a href="../create-organization/" class="btn btn-primary">+ Create Organization</a>
+                </div>
+            </div>
+
+            <!-- Toolbar -->
+            <div class="toolbar">
+                <div class="search-input">
+                    <input type="text" id="search-input" placeholder="Search organizations..." oninput="debouncedSearch()" />
+                </div>
+                <select id="filter-status" onchange="applyFilters()">
+                    <option value="">All Status</option>
+                    <option value="✅ Active">✅ Active</option>
+                    <option value="⚠️ Expiring Soon">⚠️ Expiring Soon</option>
+                    <option value="❌ Expired">❌ Expired</option>
+                    <option value="🔄 Renewal In Progress">🔄 Renewal</option>
+                </select>
+                <select id="filter-type" onchange="applyFilters()">
+                    <option value="">All Types</option>
+                    <option value="Annual">Annual</option>
+                    <option value="Monthly">Monthly</option>
+                    <option value="Quarterly">Quarterly</option>
+                </select>
+                <div class="filter-group">
+                    <button class="filter-btn" data-days="30" onclick="filterByDays(30, this)">30 days</button>
+                    <button class="filter-btn" data-days="60" onclick="filterByDays(60, this)">60 days</button>
+                    <button class="filter-btn" data-days="90" onclick="filterByDays(90, this)">90 days</button>
+                </div>
+            </div>
+
+            <!-- Table -->
+            <div class="card" id="org-table-area">
+                <div class="table-container">
+                    <table id="org-table">
+                        <thead>
+                            <tr>
+                                <th onclick="sortBy('title')">#  Name</th>
+                                <th onclick="sortBy('type')">Type</th>
+                                <th onclick="sortBy('startDate')">Start Date</th>
+                                <th onclick="sortBy('expiryDate')">Expiry Date</th>
+                                <th onclick="sortBy('days')">Days Left</th>
+                                <th onclick="sortBy('status')">Status</th>
+                                <th onclick="sortBy('manager')">Manager</th>
+                            </tr>
+                        </thead>
+                        <tbody id="org-tbody">
+                            <tr><td colspan="7"><div class="loader"><div class="spinner"></div><p>Loading organizations...</p></div></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div id="pagination-container"></div>
+            </div>
+        </main>
+    </div>
+
+    <script src="../js/config.js"></script>
+    <script src="../js/utils.js"></script>
+    <script src="../js/auth.js"></script>
+    <script src="../js/components.js"></script>
+    <script src="../js/github-api.js"></script>
+    <script src="../js/export.js"></script>
+    <script src="../lib/html2pdf.bundle.min.js" defer></script>
+
+    <script>
+        let allIssues = [];
+        let filteredIssues = [];
+        let currentSort = { field: 'days', direction: 'asc' };
+        let daysFilter = null;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            Header.render([{ label: 'Organizations' }]);
+            Nav.render('organizations');
+            Auth.renderSetupBanner('setup-banner');
+            if (Auth.isAuthenticated()) onAuthReady();
+        });
+
+        async function onAuthReady() { await loadOrganizations(); }
+
+        async function loadOrganizations() {
+            try {
+                const data = await GitHubAPI.getOrganizations({ first: 100 });
+                allIssues = data.issues.map(issue => {
+                    const parsed = Utils.parseIssueBody(issue.body);
+                    const sub = parsed.subscriptions[0] || {};
+                    const expiryDate = Utils.getEarliestExpiry(parsed.subscriptions);
+                    return {
+                        ...issue,
+                        parsed,
+                        sub,
+                        expiryDate,
+                        startDate: sub['Start Date'] || '',
+                        days: expiryDate ? Utils.remainingDays(expiryDate) : 9999,
+                        type: sub['Subscription Type'] || '—',
+                        manager: parsed.organization['Account Manager'] || '—',
+                        statusKey: expiryDate ? Utils.getStatus(expiryDate) : 'active'
+                    };
+                });
+
+                document.getElementById('org-count').textContent = `${allIssues.length} organizations`;
+                document.getElementById('export-csv-btn').style.display = '';
+                document.getElementById('export-pdf-btn').style.display = '';
+
+                applyFilters();
+            } catch (error) {
+                document.getElementById('org-tbody').innerHTML = `
+                    <tr><td colspan="7">
+                        <div class="empty-state">
+                            <h3>Failed to load</h3>
+                            <p>${Utils.escapeHtml(error.message)}</p>
+                            <button class="btn btn-primary" onclick="loadOrganizations()">Retry</button>
+                        </div>
+                    </td></tr>`;
+            }
+        }
+
+        function applyFilters() {
+            const search = document.getElementById('search-input').value.toLowerCase();
+            const statusFilter = document.getElementById('filter-status').value;
+            const typeFilter = document.getElementById('filter-type').value;
+
+            filteredIssues = allIssues.filter(issue => {
+                if (search && !issue.title.toLowerCase().includes(search)) return false;
+
+                if (statusFilter) {
+                    const hasLabel = issue.labels.nodes.some(l => l.name === statusFilter);
+                    if (!hasLabel) {
+                        // Fallback: check computed status
+                        const computedLabel = Utils.getStatusLabel(issue.statusKey);
+                        if (computedLabel !== statusFilter) return false;
+                    }
+                }
+
+                if (typeFilter) {
+                    const hasLabel = issue.labels.nodes.some(l => l.name === typeFilter);
+                    if (!hasLabel && issue.type !== typeFilter) return false;
+                }
+
+                if (daysFilter !== null) {
+                    if (issue.days > daysFilter || issue.days <= 0) return false;
+                }
+
+                return true;
+            });
+
+            sortIssues();
+            renderTable();
+        }
+
+        const debouncedSearch = Utils.debounce(() => applyFilters(), 300);
+
+        function filterByDays(days, btn) {
+            document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+            if (daysFilter === days) {
+                daysFilter = null;
+            } else {
+                daysFilter = days;
+                btn.classList.add('active');
+            }
+            applyFilters();
+        }
+
+        function sortBy(field) {
+            if (currentSort.field === field) {
+                currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+            } else {
+                currentSort.field = field;
+                currentSort.direction = 'asc';
+            }
+
+            // Update header classes
+            document.querySelectorAll('thead th').forEach(th => {
+                th.classList.remove('sort-asc', 'sort-desc');
+            });
+            const headers = ['title', 'type', 'startDate', 'expiryDate', 'days', 'status', 'manager'];
+            const idx = headers.indexOf(field);
+            if (idx >= 0) {
+                const th = document.querySelectorAll('thead th')[idx];
+                th.classList.add(currentSort.direction === 'asc' ? 'sort-asc' : 'sort-desc');
+            }
+
+            sortIssues();
+            renderTable();
+        }
+
+        function sortIssues() {
+            const { field, direction } = currentSort;
+            const dir = direction === 'asc' ? 1 : -1;
+
+            filteredIssues.sort((a, b) => {
+                let valA, valB;
+                switch (field) {
+                    case 'title': valA = a.title.toLowerCase(); valB = b.title.toLowerCase(); break;
+                    case 'type': valA = a.type; valB = b.type; break;
+                    case 'startDate': valA = a.startDate; valB = b.startDate; break;
+                    case 'expiryDate': valA = a.expiryDate || ''; valB = b.expiryDate || ''; break;
+                    case 'days': valA = a.days; valB = b.days; break;
+                    case 'status': valA = a.statusKey; valB = b.statusKey; break;
+                    case 'manager': valA = a.manager; valB = b.manager; break;
+                    default: valA = a.days; valB = b.days;
+                }
+                if (valA < valB) return -1 * dir;
+                if (valA > valB) return 1 * dir;
+                return 0;
+            });
+        }
+
+        function renderTable() {
+            const tbody = document.getElementById('org-tbody');
+
+            if (filteredIssues.length === 0) {
+                tbody.innerHTML = `
+                    <tr><td colspan="7">
+                        <div class="empty-state" style="padding:32px;">
+                            <div class="empty-state-icon">🏢</div>
+                            <h3>No organizations found</h3>
+                            <p>Try adjusting your search or filters.</p>
+                            <a href="../create-organization/" class="btn btn-primary" style="margin-top:12px;">+ Create Organization</a>
+                        </div>
+                    </td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = filteredIssues.map(issue => {
+                const hasRenewal = issue.labels.nodes.some(l => l.name === CONFIG.labels.status.renewalInProgress);
+                const statusHtml = hasRenewal
+                    ? `<span class="badge badge-info">${CONFIG.labels.status.renewalInProgress}</span>`
+                    : Utils.statusBadge(issue.expiryDate);
+
+                const daysText = issue.days <= 0
+                    ? `<span style="color:var(--error);font-weight:700;">${issue.days}</span>`
+                    : issue.days > 9000 ? '—' : issue.days;
+
+                return `
+                    <tr onclick="window.location.href='../organization/?id=${issue.number}'">
+                        <td><strong>#${issue.number}</strong> ${Utils.escapeHtml(issue.title)}</td>
+                        <td><span class="badge badge-default">${Utils.escapeHtml(issue.type)}</span></td>
+                        <td>${Utils.formatDate(issue.startDate)}</td>
+                        <td>${Utils.formatDate(issue.expiryDate)}</td>
+                        <td>${daysText}</td>
+                        <td>${statusHtml}</td>
+                        <td>${Utils.escapeHtml(issue.manager)}</td>
+                    </tr>
+                `;
+            }).join('');
+
+            document.getElementById('org-count').textContent = `${filteredIssues.length} of ${allIssues.length} organizations`;
+        }
+
+        function handleExportCSV() {
+            const dataToExport = filteredIssues.length > 0 ? filteredIssues : allIssues;
+            Export.downloadCSV(dataToExport, `organizations-export-${Utils.formatDateApi(new Date())}.csv`);
+        }
+    </script>
+</body>
+</html>
