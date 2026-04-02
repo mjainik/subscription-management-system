@@ -47,6 +47,15 @@
 
             if (Auth.isAuthenticated()) {
                 onAuthReady();
+            } else {
+                // Not authenticated — show welcome message instead of loader
+                document.getElementById('dashboard-content').innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">👋</div>
+                        <h3>Welcome to Subscription Manager</h3>
+                        <p>Enter your name and GitHub token above to get started.</p>
+                    </div>
+                `;
             }
         });
 
