@@ -15,7 +15,7 @@
 
         <main class="app-main">
             <div id="setup-banner"></div>
-            <div id="org-detail">
+            <div id="org-detail" style="display:none;">
                 <div class="loader"><div class="spinner"></div><p>Loading organization...</p></div>
             </div>
         </main>
@@ -43,7 +43,10 @@
             if (Auth.isAuthenticated()) onAuthReady();
         });
 
-        async function onAuthReady() { await loadOrganization(); }
+        async function onAuthReady() {
+            document.getElementById('org-detail').style.display = '';
+            await loadOrganization();
+        }
 
         async function loadOrganization() {
             const id = Utils.getQueryParam('id');

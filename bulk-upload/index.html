@@ -14,6 +14,7 @@
         <aside class="app-sidebar" id="app-nav"></aside>
         <main class="app-main">
             <div id="setup-banner"></div>
+            <div id="page-content" style="display:none;">
             <div class="page-header">
                 <div>
                     <h1 class="page-title">Bulk Upload</h1>
@@ -88,6 +89,7 @@
                     <div id="results-errors" style="display:none;margin-top:16px;text-align:left;"></div>
                 </div>
             </div>
+            </div><!-- end page-content -->
         </main>
     </div>
 
@@ -115,7 +117,9 @@
             dropZone.addEventListener('drop', (e) => { e.preventDefault(); dropZone.classList.remove('file-upload-drag'); if (e.dataTransfer.files[0]) handleCSV(e.dataTransfer.files[0]); });
         });
 
-        function onAuthReady() {}
+        function onAuthReady() {
+            document.getElementById('page-content').style.display = '';
+        }
 
         function handleCSV(file) {
             if (!file.name.endsWith('.csv')) {

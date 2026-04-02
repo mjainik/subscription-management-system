@@ -19,7 +19,7 @@
         <!-- Main Content -->
         <main class="app-main">
             <div id="setup-banner"></div>
-            <div id="create-content">
+            <div id="create-content" style="display:none;">
                 <!-- Form -->
                 <div id="create-form-container">
                     <div class="page-header">
@@ -234,6 +234,10 @@
             Nav.render('create');
             Auth.renderSetupBanner('setup-banner');
 
+            if (Auth.isAuthenticated()) {
+                document.getElementById('create-content').style.display = '';
+            }
+
             // Initialize file upload
             FileUpload.render('file-upload-section', handleFileUpload);
 
@@ -245,7 +249,7 @@
 
         // Called after auth setup
         function onAuthReady() {
-            // Form is ready, no additional data to load
+            document.getElementById('create-content').style.display = '';
         }
 
         // Handle file upload and extraction
