@@ -115,6 +115,8 @@
             dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('file-upload-drag'); });
             dropZone.addEventListener('dragleave', () => dropZone.classList.remove('file-upload-drag'));
             dropZone.addEventListener('drop', (e) => { e.preventDefault(); dropZone.classList.remove('file-upload-drag'); if (e.dataTransfer.files[0]) handleCSV(e.dataTransfer.files[0]); });
+
+            if (Auth.isAuthenticated()) onAuthReady();
         });
 
         function onAuthReady() {

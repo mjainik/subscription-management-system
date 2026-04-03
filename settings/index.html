@@ -104,15 +104,16 @@
             Nav.render('settings');
             Auth.renderSetupBanner('setup-banner');
 
+            if (Auth.isAuthenticated()) onAuthReady();
+        });
+
+        function onAuthReady() {
+            document.getElementById('page-content').style.display = '';
             document.getElementById('settings-name').value = Auth.getUserName() || '';
             document.getElementById('settings-owner').value = CONFIG.owner;
             document.getElementById('settings-repo').value = CONFIG.repo;
             document.getElementById('settings-url').value = `https://${CONFIG.owner}.github.io/${CONFIG.repo}/`;
             document.getElementById('secrets-link').href = `https://github.com/${CONFIG.owner}/${CONFIG.repo}/settings/secrets/actions`;
-        });
-
-        function onAuthReady() {
-            document.getElementById('page-content').style.display = '';
         }
 
         function saveProfile() {
