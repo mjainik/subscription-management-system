@@ -99,12 +99,31 @@
 
             const renewalsThisMonth = [];
             const expiryByMonth = {};
+            const activeOrgs = [];
+            const expiringOrgs = [];
+            const expiredOrgs = [];
 
             for (const issue of issues) {
                 const parsed = Utils.parseIssueBody(issue.body);
                 const expiryDate = Utils.getEarliestExpiry(parsed.subscriptions);
+                const sub = parsed.subscriptions[0] || {};
+
+                const orgInfo = {
+                    number: issue.number,
+                    title: issue.title,
+                    expiryDate: expiryDate,
+                    days: expiryDate ? Utils.remainingDays(expiryDate) : null,
+                    amount: sub['Amount'] || '—',
+                    type: sub['Subscription Type'] || '—'
+                };
 
                 if (!expiryDate) continue;
+
+                // Categorize by status
+                const status = Utils.getStatus(expiryDate);
+                if (status === 'active') activeOrgs.push(orgInfo);
+                else if (status === 'expiringSoon') expiringOrgs.push(orgInfo);
+                else if (status === 'expired') expiredOrgs.push(orgInfo);
 
                 const expiry = new Date(expiryDate);
                 const monthKey = `${expiry.getFullYear()}-${String(expiry.getMonth() + 1).padStart(2, '0')}`;
@@ -114,18 +133,13 @@
 
                 // Renewals this month
                 if (expiry.getMonth() === currentMonth && expiry.getFullYear() === currentYear) {
-                    const sub = parsed.subscriptions[0] || {};
-                    renewalsThisMonth.push({
-                        number: issue.number,
-                        title: issue.title,
-                        expiryDate: expiryDate,
-                        days: Utils.remainingDays(expiryDate),
-                        amount: sub['Amount'] || '—'
-                    });
+                    renewalsThisMonth.push(orgInfo);
                 }
             }
 
             renewalsThisMonth.sort((a, b) => a.days - b.days);
+            expiringOrgs.sort((a, b) => a.days - b.days);
+            expiredOrgs.sort((a, b) => a.days - b.days);
 
             // Build expiry chart data (next 6 months)
             const chartMonths = [];
@@ -153,10 +167,10 @@
 
                     <!-- Metric Cards -->
                     <div class="metrics-grid">
-                        ${MetricCard.render('Total Organizations', metrics.total, 'default', '🏢')}
-                        ${MetricCard.render('Active', metrics.active, 'success', '✅')}
-                        ${MetricCard.render('Expiring Soon', metrics.expiring, 'warning', '⚠️')}
-                        ${MetricCard.render('Expired', metrics.expired, 'error', '❌')}
+                        ${renderMetricWithList('Total Organizations', issues.length, 'default', '🏢', [...activeOrgs, ...expiringOrgs, ...expiredOrgs])}
+                        ${renderMetricWithList('Active', activeOrgs.length, 'success', '✅', activeOrgs)}
+                        ${renderMetricWithList('Expiring Soon', expiringOrgs.length, 'warning', '⚠️', expiringOrgs)}
+                        ${renderMetricWithList('Expired', expiredOrgs.length, 'error', '❌', expiredOrgs)}
                     </div>
 
                     <!-- Expiry Timeline -->
@@ -234,6 +248,42 @@
             loadRecentActivity();
         }
 
+        // Render metric card with hover dropdown list
+        function renderMetricWithList(label, value, type, icon, orgList) {
+            const colorClass = {
+                default: '',
+                success: 'metric-success',
+                warning: 'metric-warning',
+                error: 'metric-error',
+                info: 'metric-info'
+            };
+
+            // Build org list for dropdown (max 10)
+            const displayList = orgList.slice(0, 10);
+            const hasMore = orgList.length > 10;
+
+            const listHtml = displayList.length > 0 ? displayList.map(org => {
+                const name = org.title || org.title;
+                const days = org.days !== null && org.days !== undefined ? org.days : (org.expiryDate ? Utils.remainingDays(org.expiryDate) : null);
+                const daysText = days !== null ? (days > 0 ? `${days}d left` : `${Math.abs(days)}d overdue`) : '';
+                const num = org.number;
+                return `<a href="${CONFIG.baseUrl}/organization/?id=${num}" class="metric-dropdown-item">
+                    <span class="metric-dropdown-name">${Utils.escapeHtml(name)}</span>
+                    <span class="metric-dropdown-days">${daysText}</span>
+                </a>`;
+            }).join('') + (hasMore ? `<a href="${CONFIG.baseUrl}/organizations/" class="metric-dropdown-item metric-dropdown-more">View all ${orgList.length} →</a>` : '')
+            : '<div class="metric-dropdown-empty">No organizations</div>';
+
+            return `
+                <div class="metric-card ${colorClass[type] || ''} metric-card-hoverable">
+                    ${icon ? `<div class="metric-icon">${icon}</div>` : ''}
+                    <div class="metric-value">${value}</div>
+                    <div class="metric-label">${Utils.escapeHtml(label)}</div>
+                    <div class="metric-dropdown">${listHtml}</div>
+                </div>
+            `;
+        }
+
         // Load recent activity
         async function loadRecentActivity() {
             const container = document.getElementById('recent-activity');
@@ -296,6 +346,85 @@
         .activity-org { font-weight: 600; font-size: 13px; }
         .activity-text { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
         .activity-time { font-size: 12px; color: var(--text-muted); white-space: nowrap; }
+
+        /* ─── Metric Card Hover Dropdown ──────────────── */
+        .metric-card-hoverable {
+            position: relative;
+            cursor: pointer;
+        }
+
+        .metric-dropdown {
+            display: none;
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: var(--bg-white);
+            border: 1px solid var(--border);
+            border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+            box-shadow: var(--shadow-md);
+            z-index: 30;
+            max-height: 320px;
+            overflow-y: auto;
+            border-top: 2px solid var(--brand);
+        }
+
+        .metric-card-hoverable:hover .metric-dropdown {
+            display: block;
+        }
+
+        .metric-card-hoverable:hover {
+            border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+            box-shadow: var(--shadow-md);
+            z-index: 31;
+        }
+
+        .metric-dropdown-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 14px;
+            font-size: 13px;
+            color: var(--text);
+            text-decoration: none;
+            border-bottom: 1px solid var(--border);
+            transition: background 0.1s;
+        }
+
+        .metric-dropdown-item:last-child { border-bottom: none; }
+        .metric-dropdown-item:hover {
+            background: var(--bg);
+            text-decoration: none;
+        }
+
+        .metric-dropdown-name {
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 60%;
+        }
+
+        .metric-dropdown-days {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-muted);
+            white-space: nowrap;
+        }
+
+        .metric-dropdown-more {
+            font-weight: 600;
+            color: var(--brand);
+            justify-content: center;
+            font-size: 12px;
+        }
+
+        .metric-dropdown-empty {
+            padding: 16px;
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 13px;
+        }
     </style>
 </body>
 </html>
