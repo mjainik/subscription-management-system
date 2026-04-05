@@ -312,16 +312,7 @@ textarea { min-height: 100px; resize: vertical; }
     box-shadow: var(--shadow-sm);
     transition: all 0.2s ease;
     position: relative;
-    overflow: hidden;
-}
-.metric-card::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 3px;
-    background: var(--border);
+    border-top: 3px solid var(--border);
 }
 .metric-card:hover {
     box-shadow: var(--shadow-md);
@@ -333,13 +324,13 @@ textarea { min-height: 100px; resize: vertical; }
 .metric-label { font-size: 12px; font-weight: 600; color: var(--text-muted); margin-top: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
 
 .metric-success .metric-value { color: var(--success); }
-.metric-success::before { background: var(--success); }
+.metric-success { border-top-color: var(--success); }
 .metric-warning .metric-value { color: var(--warning); }
-.metric-warning::before { background: var(--warning); }
+.metric-warning { border-top-color: var(--warning); }
 .metric-error .metric-value { color: var(--error); }
-.metric-error::before { background: var(--error); }
+.metric-error { border-top-color: var(--error); }
 .metric-info .metric-value { color: var(--info); }
-.metric-info::before { background: var(--info); }
+.metric-info { border-top-color: var(--info); }
 
 /* ─── Tables ─────────────────────────────────────────────── */
 .table-container { overflow-x: auto; }
