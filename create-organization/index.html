@@ -113,7 +113,7 @@
                         <div class="form-row">
                             <div class="form-group">
                                 <label for="sub-type">Subscription Type *</label>
-                                <select id="sub-type" required>
+                                <select id="sub-type" required onchange="autoSetDates()">
                                     <option value="">Select type</option>
                                     <option value="Annual">Annual</option>
                                     <option value="Monthly">Monthly</option>
@@ -129,7 +129,7 @@
                         <div class="form-row">
                             <div class="form-group">
                                 <label for="sub-start">Start Date *</label>
-                                <input type="date" id="sub-start" required />
+                                <input type="date" id="sub-start" required onchange="autoSetDates()" />
                                 <div class="form-error" id="sub-start-error"></div>
                             </div>
                             <div class="form-group">
@@ -352,6 +352,56 @@
                     }, 3000);
                 }
             }
+        }
+
+        // Auto-set dates based on subscription type
+        function autoSetDates() {
+            const type = document.getElementById('sub-type').value;
+            const startInput = document.getElementById('sub-start');
+            const expiryInput = document.getElementById('sub-expiry');
+            const billingInput = document.getElementById('sub-billing');
+            const cycleSelect = document.getElementById('sub-cycle');
+
+            // If no type selected, do nothing
+            if (!type) return;
+
+            // Set start date to today if empty
+            if (!startInput.value) {
+                startInput.value = Utils.formatDateApi(new Date());
+            }
+
+            const startDate = new Date(startInput.value + 'T00:00:00');
+
+            // Calculate expiry based on type
+            let expiryDate = new Date(startDate);
+            if (type === 'Annual') {
+                expiryDate.setFullYear(expiryDate.getFullYear() + 1);
+            } else if (type === 'Monthly') {
+                expiryDate.setMonth(expiryDate.getMonth() + 1);
+            } else if (type === 'Quarterly') {
+                expiryDate.setMonth(expiryDate.getMonth() + 3);
+            }
+
+            // Set expiry date
+            expiryInput.value = Utils.formatDateApi(expiryDate);
+
+            // Set billing date = start date
+            if (!billingInput.value) {
+                billingInput.value = startInput.value;
+            }
+
+            // Set payment cycle to match type
+            cycleSelect.value = type;
+
+            // Highlight auto-filled fields
+            [expiryInput, billingInput, cycleSelect].forEach(el => {
+                el.style.borderColor = '#16A34A';
+                el.style.backgroundColor = '#F0FDF4';
+                setTimeout(() => {
+                    el.style.borderColor = '';
+                    el.style.backgroundColor = '';
+                }, 2000);
+            });
         }
 
         // Priority pill selection
