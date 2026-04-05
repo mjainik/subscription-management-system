@@ -9,7 +9,7 @@ const Export = {
      */
     downloadCSV(data, filename = 'export.csv') {
         const headers = [
-            'Org Name', 'Contact Email', 'Phone', 'Industry',
+            'Org Name', 'Contact Email', 'Phone', 'Organization Type',
             'Subscription Type', 'Plan Name', 'Start Date', 'Expiry Date',
             'Billing Date', 'Payment Cycle', 'Amount', 'Currency',
             'Remaining Days', 'Status', 'Account Manager',
@@ -32,7 +32,7 @@ const Export = {
                 this.csvEscape(item.title),
                 this.csvEscape(org['Contact Email'] || ''),
                 this.csvEscape(org['Phone'] || ''),
-                this.csvEscape(org['Industry'] || ''),
+                this.csvEscape(org['Organization Type'] || ''),
                 this.csvEscape(sub['Subscription Type'] || ''),
                 this.csvEscape(sub['Plan Name'] || ''),
                 this.csvEscape(sub['Start Date'] || ''),
@@ -131,7 +131,7 @@ const Export = {
             <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
                 <tr><td style="padding: 8px; border: 1px solid #E5E7EB; font-weight: bold; width: 200px;">Contact Email</td><td style="padding: 8px; border: 1px solid #E5E7EB;">${Utils.escapeHtml(org['Contact Email'] || '—')}</td></tr>
                 <tr><td style="padding: 8px; border: 1px solid #E5E7EB; font-weight: bold;">Phone</td><td style="padding: 8px; border: 1px solid #E5E7EB;">${Utils.escapeHtml(org['Phone'] || '—')}</td></tr>
-                <tr><td style="padding: 8px; border: 1px solid #E5E7EB; font-weight: bold;">Industry</td><td style="padding: 8px; border: 1px solid #E5E7EB;">${Utils.escapeHtml(org['Industry'] || '—')}</td></tr>
+                <tr><td style="padding: 8px; border: 1px solid #E5E7EB; font-weight: bold;">Industry</td><td style="padding: 8px; border: 1px solid #E5E7EB;">${Utils.escapeHtml(org['Organization Type'] || '—')}</td></tr>
                 <tr><td style="padding: 8px; border: 1px solid #E5E7EB; font-weight: bold;">Account Manager</td><td style="padding: 8px; border: 1px solid #E5E7EB;">${Utils.escapeHtml(org['Account Manager'] || '—')}</td></tr>
             </table>
         `;

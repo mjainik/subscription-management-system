@@ -86,18 +86,14 @@
                                 </div>
                             </div>
                             <div class="form-group">
-                                <label for="org-industry">Industry</label>
-                                <select id="org-industry">
-                                    <option value="">Select industry</option>
-                                    <option value="Technology">Technology</option>
-                                    <option value="Healthcare">Healthcare</option>
-                                    <option value="Finance">Finance</option>
-                                    <option value="Education">Education</option>
-                                    <option value="Manufacturing">Manufacturing</option>
-                                    <option value="Retail">Retail</option>
-                                    <option value="Real Estate">Real Estate</option>
-                                    <option value="Consulting">Consulting</option>
-                                    <option value="Other">Other</option>
+                                <label for="org-type">Organization Type</label>
+                                <select id="org-type">
+                                    <option value="">Select Organization Type</option>
+                                    <option value="Contractor">Contractor</option>
+                                    <option value="PMC">PMC</option>
+                                    <option value="Owner">Owner</option>
+                                    <option value="Developer">Developer</option>
+                                    <option value="Design & Build">Design & Build</option>
                                 </select>
                             </div>
                         </div>
@@ -435,7 +431,7 @@
                         ? document.getElementById('org-country-code').value + '-' + document.getElementById('org-phone').value.trim()
                         : '',
                     address: document.getElementById('org-address').value.trim(),
-                    industry: document.getElementById('org-industry').value,
+                    orgType: document.getElementById('org-type').value,
                     accountManager: document.getElementById('org-manager').value.trim()
                 };
 

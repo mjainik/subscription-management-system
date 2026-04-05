@@ -174,7 +174,7 @@ const Utils = {
         body += `| Contact Email | ${orgData.email || ''} |\n`;
         body += `| Phone | ${orgData.phone || ''} |\n`;
         body += `| Address | ${orgData.address || ''} |\n`;
-        body += `| Industry | ${orgData.industry || ''} |\n`;
+        body += `| Organization Type | ${orgData.orgType || ''} |\n`;
         body += `| Account Manager | ${orgData.accountManager || ''} |\n`;
 
         subscriptions.forEach((sub, index) => {
