@@ -1006,6 +1006,7 @@
         function renderEditForm() {
             const org = currentParsed.organization;
             const sub = currentParsed.platform || currentParsed.subscriptions[0] || {};
+            const plat = sub; // alias for template compatibility
             const alerts = currentParsed.alerts;
             const payment = currentParsed.payment || {};
             const notes = currentParsed.notes;
