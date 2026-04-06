@@ -49,6 +49,15 @@
                     <option value="Quarterly">Quarterly</option>
                     <option value="Custom">Custom</option>
                 </select>
+                <select id="filter-org-type" onchange="applyFilters()">
+                    <option value="">All Org Types</option>
+                    <option value="Contractor">Contractor</option>
+                    <option value="PMC">PMC</option>
+                    <option value="Owner">Owner</option>
+                    <option value="Developer">Developer</option>
+                    <option value="Design & Build">Design & Build</option>
+                    <option value="Other">Other</option>
+                </select>
                 <select id="filter-pay-status" onchange="applyFilters()">
                     <option value="">All Payments</option>
                     <option value="Fully Paid">Fully Paid</option>
@@ -122,7 +131,7 @@
 
         async function loadOrganizations() {
             try {
-                const data = await GitHubAPI.getOrganizations({ first: 100 });
+                const data = await GitHubAPI.getAllOrganizations();
                 allIssues = data.issues.map(issue => {
                     const parsed = Utils.parseIssueBody(issue.body);
                     const plat = parsed.platform || parsed.subscriptions[0] || {};
@@ -147,6 +156,7 @@
                         days: expiryDate ? Utils.remainingDays(expiryDate) : 9999,
                         type: typeSummary,
                         manager: parsed.organization['Account Manager'] || '—',
+                        orgType: parsed.organization['Organization Type'] || '—',
                         statusKey: expiryDate ? Utils.getStatus(expiryDate) : 'active',
                         contractValue: paySummary.contractValue,
                         totalPaid: paySummary.totalPaid,
@@ -218,6 +228,9 @@
 
                 const managerFilter = document.getElementById('filter-manager').value;
                 if (managerFilter && issue.manager !== managerFilter) return false;
+
+                const orgTypeFilter = document.getElementById('filter-org-type').value;
+                if (orgTypeFilter && issue.orgType !== orgTypeFilter) return false;
 
                 if (daysFilter !== null) {
                     if (issue.days > daysFilter || issue.days <= 0) return false;

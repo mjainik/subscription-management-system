@@ -159,6 +159,24 @@ const GitHubAPI = {
     },
 
     /**
+     * Fetch ALL organizations with auto-pagination (no 100 limit)
+     */
+    async getAllOrganizations() {
+        let allIssues = [];
+        let cursor = null;
+        let hasMore = true;
+
+        while (hasMore) {
+            const result = await this.getOrganizations({ first: 100, after: cursor });
+            allIssues = allIssues.concat(result.issues);
+            hasMore = result.pageInfo.hasNextPage;
+            cursor = result.pageInfo.endCursor;
+        }
+
+        return { issues: allIssues, totalCount: allIssues.length };
+    },
+
+    /**
      * Get a single organization by issue number
      */
     async getOrganization(issueNumber) {

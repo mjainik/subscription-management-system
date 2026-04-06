@@ -52,7 +52,7 @@
         async function loadDashboard() {
             const container = document.getElementById('dashboard-content');
             try {
-                const orgsData = await GitHubAPI.getOrganizations({ first: 100 });
+                const orgsData = await GitHubAPI.getAllOrganizations();
                 renderDashboard(orgsData.issues);
             } catch (error) {
                 container.innerHTML = `
@@ -178,8 +178,9 @@
                 const monthKey = `${expiry.getFullYear()}-${String(expiry.getMonth() + 1).padStart(2, '0')}`;
                 expiryByMonth[monthKey] = (expiryByMonth[monthKey] || 0) + 1;
 
-                // Renewals this month
-                if (expiry.getMonth() === currentMonth && expiry.getFullYear() === currentYear) {
+                // Renewals in next 30 days
+                const daysToExpiry = orgInfo.days;
+                if (daysToExpiry !== null && daysToExpiry >= 0 && daysToExpiry <= 30) {
                     renewalsThisMonth.push(orgInfo);
                     managerWorkload[mgr].renewalsDue++;
                 }
@@ -329,7 +330,7 @@
                     <!-- ═══ Renewals Due This Month ═══ -->
                     <div class="card" style="margin-bottom:24px;">
                         <div class="card-header">
-                            <h3 class="card-title">Renewals Due This Month</h3>
+                            <h3 class="card-title">Renewals Due (Next 30 Days)</h3>
                             <span class="badge badge-warning">${renewalsThisMonth.length} organizations</span>
                         </div>
                         ${renewalsThisMonth.length > 0 ? `

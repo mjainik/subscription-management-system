@@ -172,7 +172,7 @@
                             <span class="badge badge-default">${projectBatches.length} batch(es)</span>
                         </div>
                         <div class="table-container"><table>
-                            <thead><tr><th>Batch</th><th>Projects</th><th>Start</th><th>Expiry</th><th>Days</th><th>Amount</th><th>Status</th></tr></thead>
+                            <thead><tr><th>Batch</th><th>Projects</th><th>Start</th><th>Expiry</th><th>Days</th><th>Amount</th><th>Status</th><th>Action</th></tr></thead>
                             <tbody>
                                 ${projectBatches.map((b, i) => {
                                     const bExpiry = b['Expiry Date'];
@@ -185,6 +185,7 @@
                                         <td>${bDays !== null ? (bDays > 0 ? bDays + 'd' : `<span style="color:var(--error)">${bDays}d</span>`) : '—'}</td>
                                         <td>${Utils.escapeHtml(b['Amount'] || '—')}</td>
                                         <td>${bExpiry ? Utils.statusBadge(bExpiry) : '—'}</td>
+                                        <td><button class="btn btn-text btn-sm" onclick="editBatch('project',${i})">Edit</button> <button class="btn btn-text btn-sm" style="color:var(--error)" onclick="deleteBatch('project',${i})">Delete</button></td>
                                     </tr>`;
                                 }).join('')}
                             </tbody>
@@ -200,7 +201,7 @@
                             <span class="badge badge-default">${userBatches.length} batch(es)</span>
                         </div>
                         <div class="table-container"><table>
-                            <thead><tr><th>Batch</th><th>Users</th><th>Start</th><th>Expiry</th><th>Days</th><th>Amount</th><th>Status</th></tr></thead>
+                            <thead><tr><th>Batch</th><th>Users</th><th>Start</th><th>Expiry</th><th>Days</th><th>Amount</th><th>Status</th><th>Action</th></tr></thead>
                             <tbody>
                                 ${userBatches.map((b, i) => {
                                     const bExpiry = b['Expiry Date'];
@@ -213,6 +214,7 @@
                                         <td>${bDays !== null ? (bDays > 0 ? bDays + 'd' : `<span style="color:var(--error)">${bDays}d</span>`) : '—'}</td>
                                         <td>${Utils.escapeHtml(b['Amount'] || '—')}</td>
                                         <td>${bExpiry ? Utils.statusBadge(bExpiry) : '—'}</td>
+                                        <td><button class="btn btn-text btn-sm" onclick="editBatch('user',${i})">Edit</button> <button class="btn btn-text btn-sm" style="color:var(--error)" onclick="deleteBatch('user',${i})">Delete</button></td>
                                     </tr>`;
                                 }).join('')}
                             </tbody>
@@ -735,6 +737,134 @@
             return subTypes;
         }
 
+        // ─── Edit Batch ──────────────────────────────────
+        function editBatch(batchType, index) {
+            const isProject = batchType === 'project';
+            const batches = isProject ? currentParsed.projectBatches : currentParsed.userBatches;
+            const batch = batches[index];
+            if (!batch) return;
+
+            const label = isProject ? 'Project' : 'User';
+            const fieldLabel = isProject ? 'Project Names/Numbers' : 'User Range/Description';
+            const fieldValue = isProject ? (batch['Projects'] || '') : (batch['Users'] || '');
+
+            const formHtml = `
+                <div class="card" id="edit-batch-form" style="margin-bottom:16px;border:2px solid var(--brand);">
+                    <div class="card-header">
+                        <h3 class="card-title">Edit ${label} Batch ${index + 1}</h3>
+                        <button class="btn btn-text btn-sm" onclick="loadOrganization()">Cancel</button>
+                    </div>
+                    <div class="form-group"><label>${fieldLabel}</label><input type="text" id="edit-batch-names" value="${Utils.escapeHtml(fieldValue)}" /></div>
+                    <div class="form-row">
+                        <div class="form-group"><label>Start Date</label><input type="date" id="edit-batch-start" value="${batch['Start Date'] || ''}" /></div>
+                        <div class="form-group"><label>Expiry Date</label><input type="date" id="edit-batch-expiry" value="${batch['Expiry Date'] || ''}" /></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group"><label>Amount</label><input type="text" id="edit-batch-amount" value="${Utils.escapeHtml(batch['Amount'] || '')}" /></div>
+                        <div class="form-group"><label>Payment Cycle</label><input type="text" id="edit-batch-cycle" value="${Utils.escapeHtml(batch['Payment Cycle'] || '')}" /></div>
+                    </div>
+                    <button class="btn btn-primary" onclick="saveEditBatch('${batchType}', ${index})">Save Changes</button>
+                </div>`;
+
+            const existing = document.getElementById('edit-batch-form');
+            if (existing) existing.remove();
+            document.getElementById('org-detail').insertAdjacentHTML('beforeend', formHtml);
+            document.getElementById('edit-batch-form').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        async function saveEditBatch(batchType, index) {
+            const isProject = batchType === 'project';
+            const names = document.getElementById('edit-batch-names').value.trim();
+            const start = document.getElementById('edit-batch-start').value;
+            const expiry = document.getElementById('edit-batch-expiry').value;
+            const amount = document.getElementById('edit-batch-amount').value.trim();
+            const cycle = document.getElementById('edit-batch-cycle').value.trim();
+
+            if (!names || !start || !expiry) { Toast.show('Names, Start, and Expiry are required.', 'error'); return; }
+
+            try {
+                Toast.show('Saving batch...', 'info');
+                const subTypes = buildSubTypesFromParsed(currentParsed);
+                const targetBatches = isProject ? subTypes.projectBatches : subTypes.userBatches;
+
+                if (targetBatches[index]) {
+                    if (isProject) targetBatches[index].projects = names;
+                    else targetBatches[index].users = names;
+                    targetBatches[index].startDate = start;
+                    targetBatches[index].expiryDate = expiry;
+                    targetBatches[index].amount = amount;
+                    targetBatches[index].paymentCycle = cycle;
+                }
+
+                const orgData = buildOrgDataFromParsed(currentParsed, currentIssue);
+                const plat = currentParsed.platform || currentParsed.subscriptions[0] || {};
+                const paymentData = buildPaymentDataFromParsed(currentParsed, plat);
+                const alertData = { enabled: currentParsed.alerts['Alerts Enabled'] || 'Yes', daysBefore: currentParsed.alerts['Alert Days Before'] || '60', recipients: currentParsed.alerts['Alert Recipients'] || '' };
+
+                let newBody = Utils.buildIssueBody(orgData, subTypes, paymentData, alertData, currentParsed.notes);
+
+                // Preserve payment history
+                const existingPH = currentParsed.paymentHistory || [];
+                if (existingPH.length > 0) {
+                    newBody = newBody.replace(/\n## Payment History\n[\s\S]*?(?=\n## |$)/, '');
+                    const phSec = `\n## Payment History\n| # | Date | Amount | Method | Receipt | Status |\n|---|------|--------|--------|---------|--------|\n` +
+                        existingPH.map(p => `| ${p.number} | ${p.date} | ${p.amount} | ${p.method} | ${p.receipt} | ${p.status} |`).join('\n') + '\n';
+                    const ai = newBody.indexOf('\n## Alert Settings');
+                    if (ai !== -1) newBody = newBody.slice(0, ai) + phSec + newBody.slice(ai);
+                    else newBody += phSec;
+                }
+
+                await GitHubAPI.updateOrganization(currentIssue.number, { body: newBody });
+                const userName = Auth.getUserName();
+                await GitHubAPI.addComment(currentIssue.number, `✏️ **${isProject ? 'Project' : 'User'} Batch ${index + 1} edited by ${userName}** — ${Utils.formatDate(new Date().toISOString())}`);
+
+                Toast.show('Batch updated!', 'success');
+                await loadOrganization();
+            } catch (error) {
+                Toast.show('Failed: ' + error.message, 'error');
+            }
+        }
+
+        // ─── Delete Batch ─────────────────────────────────
+        function deleteBatch(batchType, index) {
+            const label = batchType === 'project' ? 'Project' : 'User';
+            Dialog.confirm('Delete Batch', `Are you sure you want to delete ${label} Batch ${index + 1}?`, async () => {
+                try {
+                    Toast.show('Deleting batch...', 'info');
+                    const subTypes = buildSubTypesFromParsed(currentParsed);
+                    const targetBatches = batchType === 'project' ? subTypes.projectBatches : subTypes.userBatches;
+                    targetBatches.splice(index, 1);
+
+                    const orgData = buildOrgDataFromParsed(currentParsed, currentIssue);
+                    const plat = currentParsed.platform || currentParsed.subscriptions[0] || {};
+                    const paymentData = buildPaymentDataFromParsed(currentParsed, plat);
+                    const alertData = { enabled: currentParsed.alerts['Alerts Enabled'] || 'Yes', daysBefore: currentParsed.alerts['Alert Days Before'] || '60', recipients: currentParsed.alerts['Alert Recipients'] || '' };
+
+                    let newBody = Utils.buildIssueBody(orgData, subTypes, paymentData, alertData, currentParsed.notes);
+
+                    // Preserve payment history
+                    const existingPH = currentParsed.paymentHistory || [];
+                    if (existingPH.length > 0) {
+                        newBody = newBody.replace(/\n## Payment History\n[\s\S]*?(?=\n## |$)/, '');
+                        const phSec = `\n## Payment History\n| # | Date | Amount | Method | Receipt | Status |\n|---|------|--------|--------|---------|--------|\n` +
+                            existingPH.map(p => `| ${p.number} | ${p.date} | ${p.amount} | ${p.method} | ${p.receipt} | ${p.status} |`).join('\n') + '\n';
+                        const ai = newBody.indexOf('\n## Alert Settings');
+                        if (ai !== -1) newBody = newBody.slice(0, ai) + phSec + newBody.slice(ai);
+                        else newBody += phSec;
+                    }
+
+                    await GitHubAPI.updateOrganization(currentIssue.number, { body: newBody });
+                    const userName = Auth.getUserName();
+                    await GitHubAPI.addComment(currentIssue.number, `✏️ **${label} Batch ${index + 1} deleted by ${userName}** — ${Utils.formatDate(new Date().toISOString())}`);
+
+                    Toast.show('Batch deleted!', 'success');
+                    await loadOrganization();
+                } catch (error) {
+                    Toast.show('Failed: ' + error.message, 'error');
+                }
+            });
+        }
+
         // ─── Add Batch (inline form) ──────────────────────
         function showAddBatch(batchType) {
             const label = batchType === 'project' ? 'Project' : 'User';
@@ -807,7 +937,19 @@
                 const paymentData = buildPaymentDataFromParsed(currentParsed, plat);
                 const alertData = { enabled: currentParsed.alerts['Alerts Enabled'] || 'Yes', daysBefore: currentParsed.alerts['Alert Days Before'] || '60', recipients: currentParsed.alerts['Alert Recipients'] || '' };
 
-                const newBody = Utils.buildIssueBody(orgData, subTypes, paymentData, alertData, currentParsed.notes);
+                let newBody = Utils.buildIssueBody(orgData, subTypes, paymentData, alertData, currentParsed.notes);
+
+                // Preserve existing payment history
+                const existingPayHist = currentParsed.paymentHistory || [];
+                if (existingPayHist.length > 0) {
+                    newBody = newBody.replace(/\n## Payment History\n[\s\S]*?(?=\n## |$)/, '');
+                    const histSec = `\n## Payment History\n| # | Date | Amount | Method | Receipt | Status |\n|---|------|--------|--------|---------|--------|\n` +
+                        existingPayHist.map(p => `| ${p.number} | ${p.date} | ${p.amount} | ${p.method} | ${p.receipt} | ${p.status} |`).join('\n') + '\n';
+                    const aIdx = newBody.indexOf('\n## Alert Settings');
+                    if (aIdx !== -1) newBody = newBody.slice(0, aIdx) + histSec + newBody.slice(aIdx);
+                    else newBody += histSec;
+                }
+
                 await GitHubAPI.updateOrganization(currentIssue.number, { body: newBody });
 
                 const userName = Auth.getUserName();
@@ -1077,7 +1219,21 @@
                 // Update platform with edited values
                 subTypes.platform = subData;
 
-                const newBody = Utils.buildIssueBody(orgData, subTypes, paymentData, alertData, notes);
+                let newBody = Utils.buildIssueBody(orgData, subTypes, paymentData, alertData, notes);
+
+                // Preserve existing payment history (buildIssueBody doesn't include it)
+                const existingPayHistory = currentParsed.paymentHistory || [];
+                if (existingPayHistory.length > 0) {
+                    newBody = newBody.replace(/\n## Payment History\n[\s\S]*?(?=\n## |$)/, '');
+                    const historySection = `\n## Payment History\n| # | Date | Amount | Method | Receipt | Status |\n|---|------|--------|--------|---------|--------|\n` +
+                        existingPayHistory.map(p => `| ${p.number} | ${p.date} | ${p.amount} | ${p.method} | ${p.receipt} | ${p.status} |`).join('\n') + '\n';
+                    const alertIdx = newBody.indexOf('\n## Alert Settings');
+                    if (alertIdx !== -1) {
+                        newBody = newBody.slice(0, alertIdx) + historySection + newBody.slice(alertIdx);
+                    } else {
+                        newBody += historySection;
+                    }
+                }
 
                 // Build audit comment — find what changed
                 const changes = [];
