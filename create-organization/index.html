@@ -468,9 +468,13 @@
             if (data.orgName) document.getElementById('org-name').value = data.orgName;
             if (data.email) document.getElementById('org-email').value = data.email;
             if (data.phone) document.getElementById('org-phone').value = data.phone;
+            if (data.address) document.getElementById('org-address').value = data.address;
+            if (data.gstin) document.getElementById('org-gst').value = data.gstin;
+            if (data.users) document.getElementById('org-licenses').value = data.users;
             if (data.startDate) setDateValue('plat-start', data.startDate);
             if (data.expiryDate) setDateValue('plat-expiry', data.expiryDate);
             if (data.amount) document.getElementById('plat-amount').value = data.amount;
+            if (data.totalAmount) document.getElementById('pay-contract').value = data.totalAmount;
 
             if (data.paymentCycle) {
                 const cycleSelect = document.getElementById('plat-cycle');
@@ -478,6 +482,7 @@
                     for (const opt of cycleSelect.options) {
                         if (opt.value.toLowerCase() === data.paymentCycle.toLowerCase()) {
                             cycleSelect.value = opt.value;
+                            onCycleChange('plat');
                             break;
                         }
                     }
@@ -495,7 +500,7 @@
             }
 
             // Highlight auto-filled fields
-            const fields = ['org-name', 'org-email', 'org-phone', 'plat-start', 'plat-expiry', 'plat-amount'];
+            const fields = ['org-name', 'org-email', 'org-phone', 'org-address', 'org-gst', 'org-licenses', 'plat-start', 'plat-expiry', 'plat-amount', 'pay-contract'];
             for (const id of fields) {
                 const el = document.getElementById(id);
                 if (el && el.value) {
