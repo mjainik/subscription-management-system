@@ -255,8 +255,11 @@
                             <div class="form-row">
                                 <div class="form-group">
                                     <label>Payment Cycle</label>
-                                    <select id="plat-cycle" onchange="toggleCustomCycle('plat-cycle','plat-cycle-custom')"><option value="">Select</option><option value="Monthly">Monthly</option><option value="Quarterly">Quarterly</option><option value="Annual">Annual</option><option value="Other">Other (custom)</option></select>
-                                    <input type="text" id="plat-cycle-custom" placeholder="e.g., Bi-Annual, Weekly" style="display:none;margin-top:6px;" />
+                                    <select id="plat-cycle" onchange="onCycleChange('plat')"><option value="">Select</option><option value="Monthly">Monthly</option><option value="Quarterly">Quarterly</option><option value="Annual">Annual</option><option value="Other">Other (custom months)</option></select>
+                                    <div id="plat-cycle-custom" style="display:none;margin-top:6px;">
+                                        <input type="number" id="plat-cycle-months" placeholder="Enter months (e.g., 18)" min="1" max="120" onchange="onCustomCycleMonths('plat')" />
+                                        <small id="plat-cycle-hint"></small>
+                                    </div>
                                 </div>
                                 <div class="form-group"></div>
                             </div>
@@ -516,28 +519,77 @@
             onDateChange(id);
         }
 
-        // Toggle custom cycle input (by ID)
-        function toggleCustomCycle(selectId, customId) {
-            const sel = document.getElementById(selectId);
-            const inp = document.getElementById(customId);
-            inp.style.display = sel.value === 'Other' ? '' : 'none';
-            if (sel.value !== 'Other') inp.value = '';
-        }
+        // ─── Custom Cycle (months) with auto-expiry ─────
 
-        // Toggle custom cycle input (by element — for dynamic batch forms)
-        function toggleCustomCycleByEl(selectEl) {
-            const customInput = selectEl.parentElement.querySelector('[class*="-cycle-custom"]');
-            if (customInput) {
-                customInput.style.display = selectEl.value === 'Other' ? '' : 'none';
-                if (selectEl.value !== 'Other') customInput.value = '';
+        // Platform cycle change
+        function onCycleChange(prefix) {
+            const sel = document.getElementById(prefix + '-cycle');
+            const customDiv = document.getElementById(prefix + '-cycle-custom');
+            customDiv.style.display = sel.value === 'Other' ? '' : 'none';
+            // If standard cycle selected, auto-set expiry
+            if (sel.value !== 'Other' && sel.value) {
+                autoPlatDates();
             }
         }
 
-        // Get cycle value (handles custom)
+        // Platform custom months → auto-set expiry
+        function onCustomCycleMonths(prefix) {
+            const months = parseInt(document.getElementById(prefix + '-cycle-months').value);
+            if (!months || months <= 0) return;
+            const startInput = document.getElementById(prefix + '-start');
+            if (!startInput.value) setDateValue(prefix + '-start', Utils.formatDateApi(new Date()));
+            const startDate = new Date(startInput.value + 'T00:00:00');
+            const expiryDate = new Date(startDate);
+            expiryDate.setMonth(expiryDate.getMonth() + months);
+            setDateValue(prefix + '-expiry', Utils.formatDateApi(expiryDate));
+
+            // Show hint
+            const years = Math.floor(months / 12);
+            const rm = months % 12;
+            let hint = '';
+            if (years > 0) hint += years + (years === 1 ? ' year' : ' years');
+            if (years > 0 && rm > 0) hint += ' ';
+            if (rm > 0) hint += rm + (rm === 1 ? ' month' : ' months');
+            document.getElementById(prefix + '-cycle-hint').textContent = '= ' + hint + ' → Expiry: ' + Utils.formatDate(Utils.formatDateApi(expiryDate));
+        }
+
+        // Batch cycle change (project/user dynamic forms)
+        function onBatchCycleChange(selectEl) {
+            const customDiv = selectEl.parentElement.querySelector('[class*="-cycle-custom"]');
+            if (customDiv) customDiv.style.display = selectEl.value === 'Other' ? '' : 'none';
+        }
+
+        // Batch custom months → auto-set expiry
+        function onBatchCustomMonths(monthsInput, batchType) {
+            const months = parseInt(monthsInput.value);
+            if (!months || months <= 0) return;
+            const card = monthsInput.closest('.batch-card');
+            if (!card) return;
+            const startInput = card.querySelector('.' + batchType + '-start');
+            const expiryInput = card.querySelector('.' + batchType + '-expiry');
+            if (!startInput || !expiryInput) return;
+            if (!startInput.value) startInput.value = Utils.formatDateApi(new Date());
+            const startDate = new Date(startInput.value + 'T00:00:00');
+            const expiryDate = new Date(startDate);
+            expiryDate.setMonth(expiryDate.getMonth() + months);
+            expiryInput.value = Utils.formatDateApi(expiryDate);
+
+            const years = Math.floor(months / 12);
+            const rm = months % 12;
+            let hint = '';
+            if (years > 0) hint += years + (years === 1 ? ' yr' : ' yrs');
+            if (years > 0 && rm > 0) hint += ' ';
+            if (rm > 0) hint += rm + ' mo';
+            const hintEl = monthsInput.parentElement.querySelector('small');
+            if (hintEl) hintEl.textContent = '= ' + hint + ' → ' + Utils.formatDate(Utils.formatDateApi(expiryDate));
+        }
+
+        // Get cycle value from select (handles custom months)
         function getCycleValue(selectEl) {
             if (selectEl.value === 'Other') {
-                const customInput = selectEl.parentElement.querySelector('[class*="-cycle-custom"]');
-                return customInput ? (customInput.value.trim() || 'Other') : 'Other';
+                const monthsInput = selectEl.parentElement.querySelector('[class*="-cycle-months"]');
+                if (monthsInput && monthsInput.value) return monthsInput.value + ' months';
+                return 'Custom';
             }
             return selectEl.value;
         }
@@ -631,8 +683,11 @@
                     </div>
                     <div class="form-group">
                         <label>Payment Cycle</label>
-                        <select class="proj-cycle" onchange="toggleCustomCycleByEl(this)"><option value="">Select</option><option value="Monthly">Monthly</option><option value="Quarterly">Quarterly</option><option value="Annual">Annual</option><option value="Other">Other (custom)</option></select>
-                        <input type="text" class="proj-cycle-custom" placeholder="e.g., Bi-Annual" style="display:none;margin-top:6px;" />
+                        <select class="proj-cycle" onchange="onBatchCycleChange(this)"><option value="">Select</option><option value="Monthly">Monthly</option><option value="Quarterly">Quarterly</option><option value="Annual">Annual</option><option value="Other">Other (custom months)</option></select>
+                        <div class="proj-cycle-custom" style="display:none;margin-top:6px;">
+                            <input type="number" class="proj-cycle-months" placeholder="Enter months" min="1" max="120" onchange="onBatchCustomMonths(this,'proj')" />
+                            <small class="proj-cycle-hint"></small>
+                        </div>
                     </div>
                 </div>
             `;
@@ -672,8 +727,11 @@
                     </div>
                     <div class="form-group">
                         <label>Payment Cycle</label>
-                        <select class="user-cycle" onchange="toggleCustomCycleByEl(this)"><option value="">Select</option><option value="Monthly">Monthly</option><option value="Quarterly">Quarterly</option><option value="Annual">Annual</option><option value="Other">Other (custom)</option></select>
-                        <input type="text" class="user-cycle-custom" placeholder="e.g., Bi-Annual" style="display:none;margin-top:6px;" />
+                        <select class="user-cycle" onchange="onBatchCycleChange(this)"><option value="">Select</option><option value="Monthly">Monthly</option><option value="Quarterly">Quarterly</option><option value="Annual">Annual</option><option value="Other">Other (custom months)</option></select>
+                        <div class="user-cycle-custom" style="display:none;margin-top:6px;">
+                            <input type="number" class="user-cycle-months" placeholder="Enter months" min="1" max="120" onchange="onBatchCustomMonths(this,'user')" />
+                            <small class="user-cycle-hint"></small>
+                        </div>
                     </div>
                 </div>
             `;
