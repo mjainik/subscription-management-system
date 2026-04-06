@@ -226,6 +226,20 @@
                             </div>
                             <div class="form-row">
                                 <div class="form-group">
+                                    <label>Payment Cycle *</label>
+                                    <select id="plat-cycle" onchange="onCycleChange('plat')"><option value="">Select cycle first</option><option value="Monthly">Monthly</option><option value="Quarterly">Quarterly</option><option value="Annual">Annual</option><option value="Other">Other (custom months)</option></select>
+                                    <div id="plat-cycle-custom" style="display:none;margin-top:6px;">
+                                        <input type="number" id="plat-cycle-months" placeholder="Enter months (e.g., 18)" min="1" max="120" onchange="onCustomCycleMonths('plat')" />
+                                        <small id="plat-cycle-hint"></small>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label>Amount</label>
+                                    <input type="number" id="plat-amount" placeholder="e.g., 500000" min="0" step="0.01" />
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
                                     <label>Start Date *</label>
                                     <div class="date-input-wrapper">
                                         <input type="text" id="plat-start-display" class="date-display" placeholder="DD-MMM-YYYY" readonly />
@@ -233,7 +247,7 @@
                                     </div>
                                 </div>
                                 <div class="form-group">
-                                    <label>Expiry Date *</label>
+                                    <label>Expiry Date * <small style="color:var(--text-muted);font-weight:400;">(auto-calculated from cycle)</small></label>
                                     <div class="date-input-wrapper">
                                         <input type="text" id="plat-expiry-display" class="date-display" placeholder="DD-MMM-YYYY" readonly />
                                         <input type="date" id="plat-expiry" onchange="onDateChange('plat-expiry')" class="date-hidden" />
@@ -241,10 +255,6 @@
                                 </div>
                             </div>
                             <div class="form-row">
-                                <div class="form-group">
-                                    <label>Amount</label>
-                                    <input type="number" id="plat-amount" placeholder="e.g., 500000" min="0" step="0.01" />
-                                </div>
                                 <div class="form-group">
                                     <label>Currency</label>
                                     <select id="plat-currency">
@@ -254,16 +264,6 @@
                                         <option value="JPY">JPY</option><option value="BRL">BRL</option><option value="ZAR">ZAR</option>
                                         <option value="MYR">MYR</option><option value="CNY">CNY</option>
                                     </select>
-                                </div>
-                            </div>
-                            <div class="form-row">
-                                <div class="form-group">
-                                    <label>Payment Cycle</label>
-                                    <select id="plat-cycle" onchange="onCycleChange('plat')"><option value="">Select</option><option value="Monthly">Monthly</option><option value="Quarterly">Quarterly</option><option value="Annual">Annual</option><option value="Other">Other (custom months)</option></select>
-                                    <div id="plat-cycle-custom" style="display:none;margin-top:6px;">
-                                        <input type="number" id="plat-cycle-months" placeholder="Enter months (e.g., 18)" min="1" max="120" onchange="onCustomCycleMonths('plat')" />
-                                        <small id="plat-cycle-hint"></small>
-                                    </div>
                                 </div>
                                 <div class="form-group"></div>
                             </div>
@@ -675,26 +675,26 @@
                 </div>
                 <div class="form-row">
                     <div class="form-group">
-                        <label>Start Date *</label>
-                        <input type="date" class="proj-start" />
-                    </div>
-                    <div class="form-group">
-                        <label>Expiry Date *</label>
-                        <input type="date" class="proj-expiry" />
-                    </div>
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>Amount</label>
-                        <input type="number" class="proj-amount" placeholder="e.g., 200000" min="0" />
-                    </div>
-                    <div class="form-group">
                         <label>Payment Cycle</label>
-                        <select class="proj-cycle" onchange="onBatchCycleChange(this)"><option value="">Select</option><option value="Monthly">Monthly</option><option value="Quarterly">Quarterly</option><option value="Annual">Annual</option><option value="Other">Other (custom months)</option></select>
+                        <select class="proj-cycle" onchange="onBatchCycleChange(this)"><option value="">Select cycle</option><option value="Monthly">Monthly</option><option value="Quarterly">Quarterly</option><option value="Annual">Annual</option><option value="Other">Other (custom months)</option></select>
                         <div class="proj-cycle-custom" style="display:none;margin-top:6px;">
                             <input type="number" class="proj-cycle-months" placeholder="Enter months" min="1" max="120" onchange="onBatchCustomMonths(this,'proj')" />
                             <small class="proj-cycle-hint"></small>
                         </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Amount</label>
+                        <input type="number" class="proj-amount" placeholder="e.g., 200000" min="0" />
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Start Date *</label>
+                        <input type="date" class="proj-start" />
+                    </div>
+                    <div class="form-group">
+                        <label>Expiry Date * <small style="color:var(--text-muted);font-weight:400;">(auto from cycle)</small></label>
+                        <input type="date" class="proj-expiry" />
                     </div>
                 </div>
             `;
@@ -719,26 +719,26 @@
                 </div>
                 <div class="form-row">
                     <div class="form-group">
-                        <label>Start Date *</label>
-                        <input type="date" class="user-start" />
-                    </div>
-                    <div class="form-group">
-                        <label>Expiry Date *</label>
-                        <input type="date" class="user-expiry" />
-                    </div>
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>Amount</label>
-                        <input type="number" class="user-amount" placeholder="e.g., 100000" min="0" />
-                    </div>
-                    <div class="form-group">
                         <label>Payment Cycle</label>
-                        <select class="user-cycle" onchange="onBatchCycleChange(this)"><option value="">Select</option><option value="Monthly">Monthly</option><option value="Quarterly">Quarterly</option><option value="Annual">Annual</option><option value="Other">Other (custom months)</option></select>
+                        <select class="user-cycle" onchange="onBatchCycleChange(this)"><option value="">Select cycle</option><option value="Monthly">Monthly</option><option value="Quarterly">Quarterly</option><option value="Annual">Annual</option><option value="Other">Other (custom months)</option></select>
                         <div class="user-cycle-custom" style="display:none;margin-top:6px;">
                             <input type="number" class="user-cycle-months" placeholder="Enter months" min="1" max="120" onchange="onBatchCustomMonths(this,'user')" />
                             <small class="user-cycle-hint"></small>
                         </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Amount</label>
+                        <input type="number" class="user-amount" placeholder="e.g., 100000" min="0" />
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Start Date *</label>
+                        <input type="date" class="user-start" />
+                    </div>
+                    <div class="form-group">
+                        <label>Expiry Date * <small style="color:var(--text-muted);font-weight:400;">(auto from cycle)</small></label>
+                        <input type="date" class="user-expiry" />
                     </div>
                 </div>
             `;
