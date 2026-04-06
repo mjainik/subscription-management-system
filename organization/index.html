@@ -476,15 +476,371 @@
             }
         }
 
-        // Edit toggle (redirect to GitHub for now)
+        // ─── In-Page Edit Mode ──────────────────────────
+        let isEditing = false;
+
         function toggleEdit() {
-            window.open(`https://github.com/${CONFIG.owner}/${CONFIG.repo}/issues/${currentIssue.number}`, '_blank');
+            isEditing = !isEditing;
+            if (isEditing) {
+                renderEditForm();
+            } else {
+                renderDetail();
+            }
         }
 
-        // Add subscription
+        function renderEditForm() {
+            const org = currentParsed.organization;
+            const sub = currentParsed.subscriptions[0] || {};
+            const alerts = currentParsed.alerts;
+            const payment = currentParsed.payment || {};
+            const notes = currentParsed.notes;
+
+            document.getElementById('org-detail').innerHTML = `
+                <div class="page-header">
+                    <div>
+                        <h1 class="page-title">Edit: ${Utils.escapeHtml(currentIssue.title)}</h1>
+                        <p class="page-subtitle">Modify organization details and save</p>
+                    </div>
+                    <div style="display:flex;gap:8px;">
+                        <button class="btn btn-secondary" onclick="toggleEdit()">Cancel</button>
+                    </div>
+                </div>
+
+                <div class="card" style="margin-bottom:16px;">
+                    <h3 class="edit-section-title">Organization Details</h3>
+                    <div class="form-row">
+                        <div class="form-group"><label>Organization Name *</label><input type="text" id="edit-name" value="${Utils.escapeHtml(org['Organization Name'] || currentIssue.title)}" /></div>
+                        <div class="form-group"><label>Contact Email</label><input type="email" id="edit-email" value="${Utils.escapeHtml(org['Contact Email'] || '')}" /></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group"><label>Contact Person</label><input type="text" id="edit-contact-person" value="${Utils.escapeHtml(org['Contact Person'] || '')}" /></div>
+                        <div class="form-group"><label>Designation</label><input type="text" id="edit-designation" value="${Utils.escapeHtml(org['Designation'] || '')}" /></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group"><label>Phone</label><input type="tel" id="edit-phone" value="${Utils.escapeHtml(org['Phone'] || '')}" /></div>
+                        <div class="form-group"><label>Address</label><input type="text" id="edit-address" value="${Utils.escapeHtml(org['Address'] || '')}" /></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group"><label>Organization Type</label>
+                            <select id="edit-org-type">
+                                <option value="">Select</option>
+                                ${['Contractor','PMC','Owner','Developer','Design & Build'].map(t => `<option value="${t}" ${(org['Organization Type'] || '') === t ? 'selected' : ''}>${t}</option>`).join('')}
+                            </select>
+                        </div>
+                        <div class="form-group"><label>Account Manager</label><input type="text" id="edit-manager" value="${Utils.escapeHtml(org['Account Manager'] || '')}" /></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group"><label>GST/Tax ID</label><input type="text" id="edit-gst" value="${Utils.escapeHtml(org['GST/Tax ID'] || '')}" /></div>
+                        <div class="form-group"><label>Deal Source</label>
+                            <select id="edit-deal-source">
+                                <option value="">Select</option>
+                                ${['Referral','Direct','Partner','Website','Event','Other'].map(s => `<option value="${s}" ${(org['Deal Source'] || '') === s ? 'selected' : ''}>${s}</option>`).join('')}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group"><label>Number of Licenses</label><input type="number" id="edit-licenses" value="${Utils.escapeHtml(org['Number of Licenses'] || '')}" /></div>
+                        <div class="form-group"></div>
+                    </div>
+                </div>
+
+                <div class="card" style="margin-bottom:16px;">
+                    <h3 class="edit-section-title">Secondary Contact</h3>
+                    <div class="form-row">
+                        <div class="form-group"><label>Name</label><input type="text" id="edit-sec-name" value="${Utils.escapeHtml(org['Secondary Contact'] || '')}" /></div>
+                        <div class="form-group"><label>Email</label><input type="email" id="edit-sec-email" value="${Utils.escapeHtml(org['Secondary Email'] || '')}" /></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group"><label>Phone</label><input type="tel" id="edit-sec-phone" value="${Utils.escapeHtml(org['Secondary Phone'] || '')}" /></div>
+                        <div class="form-group"></div>
+                    </div>
+                </div>
+
+                <div class="card" style="margin-bottom:16px;">
+                    <h3 class="edit-section-title">Subscription Details</h3>
+                    <div class="form-row">
+                        <div class="form-group"><label>Subscription Type</label>
+                            <select id="edit-sub-type">
+                                ${['Annual','Monthly','Quarterly'].map(t => `<option value="${t}" ${(sub['Subscription Type'] || '') === t ? 'selected' : ''}>${t}</option>`).join('')}
+                            </select>
+                        </div>
+                        <div class="form-group"><label>Plan Name</label><input type="text" id="edit-plan" value="${Utils.escapeHtml(sub['Plan Name'] || '')}" /></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group"><label>Start Date</label><input type="date" id="edit-start" value="${sub['Start Date'] || ''}" /></div>
+                        <div class="form-group"><label>Expiry Date</label><input type="date" id="edit-expiry" value="${sub['Expiry Date'] || ''}" /></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group"><label>Billing Date</label><input type="date" id="edit-billing" value="${sub['Billing Date'] || ''}" /></div>
+                        <div class="form-group"><label>Payment Cycle</label>
+                            <select id="edit-cycle">
+                                ${['Monthly','Quarterly','Annual'].map(t => `<option value="${t}" ${(sub['Payment Cycle'] || '') === t ? 'selected' : ''}>${t}</option>`).join('')}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group"><label>Amount</label><input type="text" id="edit-amount" value="${Utils.escapeHtml(sub['Amount'] || '')}" /></div>
+                        <div class="form-group"><label>Currency</label>
+                            <select id="edit-currency">
+                                ${['USD','EUR','GBP','INR','AUD','CAD'].map(c => `<option value="${c}" ${(sub['Currency'] || 'USD') === c ? 'selected' : ''}>${c}</option>`).join('')}
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card" style="margin-bottom:16px;">
+                    <h3 class="edit-section-title">Payment Details</h3>
+                    <div class="form-row">
+                        <div class="form-group"><label>Contract Value</label><input type="text" id="edit-contract-value" value="${Utils.escapeHtml(payment['Contract Value'] || '')}" /></div>
+                        <div class="form-group"><label>Payment Schedule</label>
+                            <select id="edit-pay-schedule">
+                                <option value="One-time" ${(payment['Payment Schedule'] || '') === 'One-time' ? 'selected' : ''}>One-time</option>
+                                <option value="Installments" ${(payment['Payment Schedule'] || '') === 'Installments' ? 'selected' : ''}>Installments</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card" style="margin-bottom:16px;">
+                    <h3 class="edit-section-title">Alert Settings</h3>
+                    <div class="form-row">
+                        <div class="form-group"><label>Alerts Enabled</label>
+                            <select id="edit-alert-enabled">
+                                <option value="Yes" ${(alerts['Alerts Enabled'] || 'Yes') === 'Yes' ? 'selected' : ''}>Yes</option>
+                                <option value="No" ${(alerts['Alerts Enabled'] || '') === 'No' ? 'selected' : ''}>No</option>
+                            </select>
+                        </div>
+                        <div class="form-group"><label>Alert Days Before</label>
+                            <select id="edit-alert-days">
+                                ${['30','60','90'].map(d => `<option value="${d}" ${(alerts['Alert Days Before'] || '60') === d ? 'selected' : ''}>${d} days</option>`).join('')}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group"><label>Alert Recipients</label><input type="text" id="edit-alert-recipients" value="${Utils.escapeHtml(alerts['Alert Recipients'] || '')}" /></div>
+                </div>
+
+                <div class="card" style="margin-bottom:16px;">
+                    <h3 class="edit-section-title">Notes</h3>
+                    <div class="form-group"><textarea id="edit-notes" style="min-height:80px;">${Utils.escapeHtml(notes || '')}</textarea></div>
+                </div>
+
+                <div style="display:flex;gap:12px;margin-bottom:24px;">
+                    <button class="btn btn-primary btn-lg" onclick="saveEdit()">Save Changes</button>
+                    <button class="btn btn-secondary btn-lg" onclick="toggleEdit()">Cancel</button>
+                </div>
+            `;
+            window.scrollTo(0, 0);
+        }
+
+        async function saveEdit() {
+            const orgData = {
+                name: document.getElementById('edit-name').value.trim(),
+                email: document.getElementById('edit-email').value.trim(),
+                phone: document.getElementById('edit-phone').value.trim(),
+                address: document.getElementById('edit-address').value.trim(),
+                orgType: document.getElementById('edit-org-type').value,
+                accountManager: document.getElementById('edit-manager').value.trim(),
+                contactPerson: document.getElementById('edit-contact-person').value.trim(),
+                designation: document.getElementById('edit-designation').value.trim(),
+                secondaryContact: document.getElementById('edit-sec-name').value.trim(),
+                secondaryEmail: document.getElementById('edit-sec-email').value.trim(),
+                secondaryPhone: document.getElementById('edit-sec-phone').value.trim(),
+                gstId: document.getElementById('edit-gst').value.trim(),
+                dealSource: document.getElementById('edit-deal-source').value,
+                licenses: document.getElementById('edit-licenses').value
+            };
+
+            const subData = {
+                type: document.getElementById('edit-sub-type').value,
+                planName: document.getElementById('edit-plan').value.trim(),
+                startDate: document.getElementById('edit-start').value,
+                expiryDate: document.getElementById('edit-expiry').value,
+                billingDate: document.getElementById('edit-billing').value,
+                paymentCycle: document.getElementById('edit-cycle').value,
+                amount: document.getElementById('edit-amount').value,
+                currency: document.getElementById('edit-currency').value,
+                autoRenew: 'No'
+            };
+
+            const paymentData = {
+                contractValue: document.getElementById('edit-contract-value').value,
+                schedule: document.getElementById('edit-pay-schedule').value,
+                totalPaid: currentParsed.payment?.['Total Paid'] || '$0',
+                remaining: currentParsed.payment?.['Remaining'] || '',
+                status: currentParsed.payment?.['Payment Status'] || 'Due'
+            };
+
+            const alertData = {
+                enabled: document.getElementById('edit-alert-enabled').value,
+                daysBefore: document.getElementById('edit-alert-days').value,
+                recipients: document.getElementById('edit-alert-recipients').value.trim()
+            };
+
+            const notes = document.getElementById('edit-notes').value.trim();
+
+            if (!orgData.name) { Toast.show('Organization name is required.', 'error'); return; }
+
+            try {
+                Toast.show('Saving changes...', 'info');
+
+                const newBody = Utils.buildIssueBody(orgData, [subData], paymentData, alertData, notes);
+
+                // Build audit comment — find what changed
+                const changes = [];
+                const oldOrg = currentParsed.organization;
+                const oldSub = currentParsed.subscriptions[0] || {};
+                const fieldMap = [
+                    ['Organization Name', orgData.name, oldOrg['Organization Name'] || currentIssue.title],
+                    ['Contact Email', orgData.email, oldOrg['Contact Email']],
+                    ['Phone', orgData.phone, oldOrg['Phone']],
+                    ['Organization Type', orgData.orgType, oldOrg['Organization Type']],
+                    ['Account Manager', orgData.accountManager, oldOrg['Account Manager']],
+                    ['Expiry Date', subData.expiryDate, oldSub['Expiry Date']],
+                    ['Amount', subData.amount, oldSub['Amount']],
+                    ['Contract Value', paymentData.contractValue, currentParsed.payment?.['Contract Value']],
+                ];
+                for (const [field, newVal, oldVal] of fieldMap) {
+                    if (newVal !== (oldVal || '') && (newVal || oldVal)) {
+                        changes.push(`| ${field} | ${oldVal || '—'} | ${newVal || '—'} |`);
+                    }
+                }
+
+                // Update the issue
+                await GitHubAPI.updateOrganization(currentIssue.number, {
+                    title: orgData.name,
+                    body: newBody
+                });
+
+                // Update labels
+                const newStatus = Utils.getStatus(subData.expiryDate);
+                const newStatusLabel = Utils.getStatusLabel(newStatus);
+                const currentLabels = currentIssue.labels.nodes.map(l => l.name);
+                await GitHubAPI.updateStatusLabel(currentIssue.number, newStatusLabel, currentLabels);
+
+                // Add type label
+                if (subData.type) {
+                    const typeLabels = ['Annual', 'Monthly', 'Quarterly'];
+                    for (const tl of typeLabels) {
+                        if (currentLabels.includes(tl) && tl !== subData.type) {
+                            await GitHubAPI.removeLabel(currentIssue.number, tl);
+                        }
+                    }
+                    await GitHubAPI.addLabels(currentIssue.number, [subData.type]);
+                }
+
+                // Add audit comment
+                if (changes.length > 0) {
+                    const userName = Auth.getUserName();
+                    const auditBody = `✏️ **Updated by ${userName}** — ${Utils.formatDate(new Date().toISOString())}\n\n| Field | Old Value | New Value |\n|-------|-----------|----------|\n${changes.join('\n')}`;
+                    await GitHubAPI.addComment(currentIssue.number, auditBody);
+                }
+
+                Toast.show('Changes saved!', 'success');
+                isEditing = false;
+                await loadOrganization();
+            } catch (error) {
+                Toast.show('Failed to save: ' + error.message, 'error');
+            }
+        }
+
+        // ─── Add Subscription In-Page ─────────────────────
         function showAddSubscription() {
-            Toast.show('Redirecting to GitHub to add subscription section...', 'info');
-            window.open(`https://github.com/${CONFIG.owner}/${CONFIG.repo}/issues/${currentIssue.number}`, '_blank');
+            const container = document.getElementById('org-detail');
+            const formHtml = `
+                <div class="card" id="add-sub-form" style="margin-bottom:16px;border:2px solid var(--brand);">
+                    <div class="card-header">
+                        <h3 class="card-title">Add New Subscription</h3>
+                        <button class="btn btn-text btn-sm" onclick="loadOrganization()">Cancel</button>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group"><label>Subscription Type *</label>
+                            <select id="new-sub-type"><option value="Annual">Annual</option><option value="Monthly">Monthly</option><option value="Quarterly">Quarterly</option></select>
+                        </div>
+                        <div class="form-group"><label>Plan Name</label><input type="text" id="new-sub-plan" placeholder="e.g., Enterprise" /></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group"><label>Start Date *</label><input type="date" id="new-sub-start" /></div>
+                        <div class="form-group"><label>Expiry Date *</label><input type="date" id="new-sub-expiry" /></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group"><label>Billing Date</label><input type="date" id="new-sub-billing" /></div>
+                        <div class="form-group"><label>Payment Cycle</label>
+                            <select id="new-sub-cycle"><option value="Monthly">Monthly</option><option value="Quarterly">Quarterly</option><option value="Annual">Annual</option></select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group"><label>Amount</label><input type="text" id="new-sub-amount" placeholder="e.g., $5000" /></div>
+                        <div class="form-group"><label>Currency</label>
+                            <select id="new-sub-currency"><option value="USD">USD</option><option value="EUR">EUR</option><option value="INR">INR</option></select>
+                        </div>
+                    </div>
+                    <button class="btn btn-primary" onclick="saveNewSubscription()">Add Subscription</button>
+                </div>
+            `;
+
+            // Insert after the "Add Another Subscription" button
+            const addBtn = container.querySelector('[onclick="showAddSubscription()"]');
+            if (addBtn) {
+                addBtn.parentElement.insertAdjacentHTML('afterend', formHtml);
+                addBtn.parentElement.style.display = 'none';
+                document.getElementById('add-sub-form').scrollIntoView({ behavior: 'smooth' });
+            }
+        }
+
+        async function saveNewSubscription() {
+            const start = document.getElementById('new-sub-start').value;
+            const expiry = document.getElementById('new-sub-expiry').value;
+            if (!start || !expiry) { Toast.show('Start and Expiry dates are required.', 'error'); return; }
+
+            const newSub = {
+                type: document.getElementById('new-sub-type').value,
+                planName: document.getElementById('new-sub-plan').value.trim(),
+                startDate: start,
+                expiryDate: expiry,
+                billingDate: document.getElementById('new-sub-billing').value || start,
+                paymentCycle: document.getElementById('new-sub-cycle').value,
+                amount: document.getElementById('new-sub-amount').value.trim(),
+                currency: document.getElementById('new-sub-currency').value,
+                autoRenew: 'No'
+            };
+
+            try {
+                Toast.show('Adding subscription...', 'info');
+
+                // Rebuild body with existing subs + new one
+                const allSubs = [...currentParsed.subscriptions.map(s => ({
+                    type: s['Subscription Type'], planName: s['Plan Name'],
+                    startDate: s['Start Date'], expiryDate: s['Expiry Date'],
+                    billingDate: s['Billing Date'], paymentCycle: s['Payment Cycle'],
+                    amount: s['Amount'], currency: s['Currency'] || 'USD', autoRenew: s['Auto Renew'] || 'No'
+                })), newSub];
+
+                const org = currentParsed.organization;
+                const orgData = {
+                    name: org['Organization Name'] || currentIssue.title,
+                    email: org['Contact Email'] || '', phone: org['Phone'] || '',
+                    address: org['Address'] || '', orgType: org['Organization Type'] || '',
+                    accountManager: org['Account Manager'] || '',
+                    contactPerson: org['Contact Person'] || '', designation: org['Designation'] || '',
+                    secondaryContact: org['Secondary Contact'] || '', secondaryEmail: org['Secondary Email'] || '',
+                    secondaryPhone: org['Secondary Phone'] || '', gstId: org['GST/Tax ID'] || '',
+                    dealSource: org['Deal Source'] || '', licenses: org['Number of Licenses'] || ''
+                };
+                const payment = currentParsed.payment || {};
+                const paymentData = { contractValue: payment['Contract Value'] || '', schedule: payment['Payment Schedule'] || 'One-time', totalPaid: payment['Total Paid'] || '$0', remaining: payment['Remaining'] || '', status: payment['Payment Status'] || 'Due' };
+                const alertData = { enabled: currentParsed.alerts['Alerts Enabled'] || 'Yes', daysBefore: currentParsed.alerts['Alert Days Before'] || '60', recipients: currentParsed.alerts['Alert Recipients'] || '' };
+
+                const newBody = Utils.buildIssueBody(orgData, allSubs, paymentData, alertData, currentParsed.notes);
+                await GitHubAPI.updateOrganization(currentIssue.number, { body: newBody });
+
+                const userName = Auth.getUserName();
+                await GitHubAPI.addComment(currentIssue.number, `✏️ **New subscription added by ${userName}** — ${Utils.formatDate(new Date().toISOString())}\n\nType: ${newSub.type}\nPeriod: ${newSub.startDate} to ${newSub.expiryDate}\nAmount: ${newSub.amount}`);
+
+                Toast.show('Subscription added!', 'success');
+                await loadOrganization();
+            } catch (error) {
+                Toast.show('Failed to add subscription: ' + error.message, 'error');
+            }
         }
 
         // Export PDF
@@ -494,6 +850,15 @@
     </script>
 
     <style>
+        .edit-section-title {
+            font-size: 15px;
+            font-weight: 700;
+            color: var(--text);
+            margin-bottom: 16px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--border);
+        }
+
         .detail-grid { display: flex; flex-direction: column; gap: 16px; }
 
         .detail-table { }
