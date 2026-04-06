@@ -316,14 +316,15 @@
                         <div class="form-row">
                             <div class="form-group">
                                 <label>Payment Method</label>
-                                <select id="add-pay-method">
+                                <select id="add-pay-method" onchange="toggleCustomMethod()">
                                     <option value="Bank Transfer">Bank Transfer</option>
                                     <option value="Cheque">Cheque</option>
                                     <option value="UPI">UPI</option>
                                     <option value="Credit Card">Credit Card</option>
                                     <option value="Cash">Cash</option>
-                                    <option value="Other">Other</option>
+                                    <option value="Other">Other (custom)</option>
                                 </select>
+                                <input type="text" id="add-pay-method-custom" placeholder="Enter payment method" style="display:none;margin-top:6px;" />
                             </div>
                             <div class="form-group">
                                 <label>Receipt/Invoice #</label>
@@ -497,7 +498,10 @@
         async function submitPayment() {
             const date = document.getElementById('add-pay-date').value;
             const amount = document.getElementById('add-pay-amount').value;
-            const method = document.getElementById('add-pay-method').value;
+            const methodSelect = document.getElementById('add-pay-method').value;
+            const method = methodSelect === 'Other'
+                ? (document.getElementById('add-pay-method-custom').value.trim() || 'Other')
+                : methodSelect;
             const receipt = document.getElementById('add-pay-receipt').value.trim() || '—';
 
             if (!date || !amount) {
@@ -628,6 +632,14 @@
             } catch (error) {
                 Toast.show('Failed to record payment: ' + error.message, 'error');
             }
+        }
+
+        // Toggle custom payment method input
+        function toggleCustomMethod() {
+            const select = document.getElementById('add-pay-method');
+            const customInput = document.getElementById('add-pay-method-custom');
+            customInput.style.display = select.value === 'Other' ? '' : 'none';
+            if (select.value !== 'Other') customInput.value = '';
         }
 
         // Date change handler for payment form
