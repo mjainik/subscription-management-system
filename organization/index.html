@@ -595,7 +595,9 @@
         .form-group label { display: block; font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
 
         @media (max-width: 768px) {
-            .payment-overview { grid-template-columns: 1fr; }
+            .payment-overview { grid-template-columns: repeat(3, 1fr); gap: 8px; }
+            .payment-stat-value { font-size: 18px; }
+            .form-row { grid-template-columns: 1fr; }
             .detail-row { flex-direction: column; gap: 4px; }
             .detail-label { width: auto; }
         }
