@@ -56,7 +56,11 @@
                     <option value="Overdue">Overdue</option>
                     <option value="Due">Due</option>
                 </select>
+                <select id="filter-manager" onchange="applyFilters()">
+                    <option value="">All Managers</option>
+                </select>
                 <div class="filter-group">
+                    <button class="filter-btn" data-days="7" onclick="filterByDays(7, this)">7 days</button>
                     <button class="filter-btn" data-days="30" onclick="filterByDays(30, this)">30 days</button>
                     <button class="filter-btn" data-days="60" onclick="filterByDays(60, this)">60 days</button>
                     <button class="filter-btn" data-days="90" onclick="filterByDays(90, this)">90 days</button>
@@ -155,6 +159,16 @@
                 document.getElementById('export-csv-btn').style.display = '';
                 document.getElementById('export-pdf-btn').style.display = '';
 
+                // Populate manager filter dynamically
+                const managers = [...new Set(allIssues.map(i => i.manager).filter(m => m && m !== '—'))].sort();
+                const managerSelect = document.getElementById('filter-manager');
+                managers.forEach(m => {
+                    const opt = document.createElement('option');
+                    opt.value = m;
+                    opt.textContent = m;
+                    managerSelect.appendChild(opt);
+                });
+
                 applyFilters();
             } catch (error) {
                 document.getElementById('org-tbody').innerHTML = `
@@ -175,7 +189,18 @@
             const payStatusFilter = document.getElementById('filter-pay-status').value;
 
             filteredIssues = allIssues.filter(issue => {
-                if (search && !issue.title.toLowerCase().includes(search)) return false;
+                if (search) {
+                    const org = issue.parsed.organization;
+                    const searchFields = [
+                        issue.title,
+                        org['Contact Email'] || '',
+                        org['Contact Person'] || '',
+                        org['Account Manager'] || '',
+                        org['Phone'] || '',
+                        org['Organization Type'] || ''
+                    ].join(' ').toLowerCase();
+                    if (!searchFields.includes(search)) return false;
+                }
 
                 if (statusFilter) {
                     const computedLabel = Utils.getStatusLabel(issue.statusKey);
@@ -190,6 +215,9 @@
                 }
 
                 if (payStatusFilter && issue.payStatus !== payStatusFilter) return false;
+
+                const managerFilter = document.getElementById('filter-manager').value;
+                if (managerFilter && issue.manager !== managerFilter) return false;
 
                 if (daysFilter !== null) {
                     if (issue.days > daysFilter || issue.days <= 0) return false;

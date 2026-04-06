@@ -114,7 +114,9 @@
                         <button class="btn btn-secondary" onclick="exportOrgPDF()">Export PDF ⬇</button>
                         <a href="${currentIssue.html_url || `https://github.com/${CONFIG.owner}/${CONFIG.repo}/issues/${currentIssue.number}`}" target="_blank" class="btn btn-secondary">View on GitHub</a>
                         <button class="btn btn-secondary" onclick="toggleEdit()">Edit</button>
-                        ${currentIssue.state === 'OPEN' ? `<button class="btn btn-danger" onclick="handleDelete()">Delete</button>` : ''}
+                        ${currentIssue.state === 'OPEN'
+                            ? `<button class="btn btn-danger" onclick="handleDelete()">Delete</button>`
+                            : `<button class="btn btn-primary" onclick="handleReopen()">Re-open</button>`}
                     </div>
                 </div>
 
@@ -347,11 +349,20 @@
                     </div>
 
                     <!-- Notes -->
-                    ${notes ? `
                     <div class="card">
-                        <div class="card-header"><h3 class="card-title">Notes</h3></div>
-                        <p style="color:var(--text-secondary);white-space:pre-wrap;">${Utils.escapeHtml(notes)}</p>
-                    </div>` : ''}
+                        <div class="card-header">
+                            <h3 class="card-title">Notes</h3>
+                            <button class="btn btn-sm btn-secondary" onclick="document.getElementById('add-note-section').style.display=''">+ Add Note</button>
+                        </div>
+                        ${notes ? `<p style="color:var(--text-secondary);white-space:pre-wrap;margin-bottom:12px;">${Utils.escapeHtml(notes)}</p>` : '<p style="color:var(--text-muted);">No notes yet.</p>'}
+                        <div id="add-note-section" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
+                            <textarea id="quick-note" placeholder="Type your note here (e.g., call summary, follow-up action)..." style="width:100%;min-height:80px;margin-bottom:8px;"></textarea>
+                            <div style="display:flex;gap:8px;">
+                                <button class="btn btn-primary btn-sm" onclick="saveQuickNote()">Save Note</button>
+                                <button class="btn btn-text btn-sm" onclick="document.getElementById('add-note-section').style.display='none'">Cancel</button>
+                            </div>
+                        </div>
+                    </div>
 
                     <!-- Status Actions -->
                     <div class="card">
@@ -458,6 +469,20 @@
                     }
                 }
             );
+        }
+
+        // Re-open deleted org
+        async function handleReopen() {
+            try {
+                await GitHubAPI.updateOrganization(currentIssue.number, { state: 'open' });
+                await GitHubAPI.removeLabel(currentIssue.number, CONFIG.labels.other.deleted);
+                const userName = Auth.getUserName();
+                await GitHubAPI.addComment(currentIssue.number, `✏️ **Re-opened by ${userName}** — ${Utils.formatDate(new Date().toISOString())}`);
+                Toast.show('Organization re-opened!', 'success');
+                await loadOrganization();
+            } catch (error) {
+                Toast.show('Failed to re-open: ' + error.message, 'error');
+            }
         }
 
         // Document upload
@@ -648,6 +673,23 @@
             const displayInput = document.getElementById(id + '-display');
             if (dateInput && displayInput && dateInput.value) {
                 displayInput.value = Utils.formatDate(dateInput.value);
+            }
+        }
+
+        // ─── Quick Note (inline, no full edit) ─────────
+        async function saveQuickNote() {
+            const note = document.getElementById('quick-note').value.trim();
+            if (!note) { Toast.show('Please enter a note.', 'error'); return; }
+
+            try {
+                Toast.show('Saving note...', 'info');
+                const userName = Auth.getUserName();
+                const commentBody = `📝 **Note by ${userName}** — ${Utils.formatDate(new Date().toISOString())}\n\n${note}`;
+                await GitHubAPI.addComment(currentIssue.number, commentBody);
+                Toast.show('Note saved!', 'success');
+                await loadOrganization();
+            } catch (error) {
+                Toast.show('Failed to save note: ' + error.message, 'error');
             }
         }
 
@@ -848,7 +890,7 @@
                         <div class="form-group"><label>Organization Type</label>
                             <select id="edit-org-type">
                                 <option value="">Select</option>
-                                ${['Contractor','PMC','Owner','Developer','Design & Build'].map(t => `<option value="${t}" ${(org['Organization Type'] || '') === t ? 'selected' : ''}>${t}</option>`).join('')}
+                                ${['Contractor','PMC','Owner','Developer','Design & Build','Other'].map(t => `<option value="${t}" ${(org['Organization Type'] || '') === t ? 'selected' : ''}>${t}</option>`).join('')}
                             </select>
                         </div>
                         <div class="form-group"><label>Account Manager</label><input type="text" id="edit-manager" value="${Utils.escapeHtml(org['Account Manager'] || '')}" /></div>
@@ -914,9 +956,18 @@
                         <div class="form-group"><label>Amount</label><input type="text" id="edit-amount" value="${Utils.escapeHtml(sub['Amount'] || '')}" /></div>
                         <div class="form-group"><label>Currency</label>
                             <select id="edit-currency">
-                                ${['USD','EUR','GBP','INR','AUD','CAD'].map(c => `<option value="${c}" ${(sub['Currency'] || 'USD') === c ? 'selected' : ''}>${c}</option>`).join('')}
+                                ${['USD','EUR','GBP','INR','AUD','CAD','SGD','AED','SAR','JPY','BRL','ZAR','MYR','CNY'].map(c => `<option value="${c}" ${(sub['Currency'] || 'USD') === c ? 'selected' : ''}>${c}</option>`).join('')}
                             </select>
                         </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group"><label>Auto Renew</label>
+                            <select id="edit-auto-renew">
+                                <option value="No" ${(sub['Auto Renew'] || 'No') === 'No' ? 'selected' : ''}>No</option>
+                                <option value="Yes" ${(sub['Auto Renew'] || '') === 'Yes' ? 'selected' : ''}>Yes</option>
+                            </select>
+                        </div>
+                        <div class="form-group"></div>
                     </div>
                 </div>
 
@@ -944,7 +995,7 @@
                         </div>
                         <div class="form-group"><label>Alert Days Before</label>
                             <select id="edit-alert-days">
-                                ${['30','60','90'].map(d => `<option value="${d}" ${(alerts['Alert Days Before'] || '60') === d ? 'selected' : ''}>${d} days</option>`).join('')}
+                                ${['7','14','30','60','90','120'].map(d => `<option value="${d}" ${(alerts['Alert Days Before'] || '60') === d ? 'selected' : ''}>${d} days</option>`).join('')}
                             </select>
                         </div>
                     </div>
@@ -995,7 +1046,7 @@
                 paymentCycle: document.getElementById('edit-cycle').value === 'Other' ? (document.getElementById('edit-cycle-months').value ? document.getElementById('edit-cycle-months').value + ' months' : 'Custom') : document.getElementById('edit-cycle').value,
                 amount: document.getElementById('edit-amount').value,
                 currency: document.getElementById('edit-currency').value,
-                autoRenew: 'No'
+                autoRenew: document.getElementById('edit-auto-renew').value
             };
 
             const paymentData = {
@@ -1015,6 +1066,8 @@
             const notes = document.getElementById('edit-notes').value.trim();
 
             if (!orgData.name) { Toast.show('Organization name is required.', 'error'); return; }
+            if (orgData.email && !Utils.isValidEmail(orgData.email)) { Toast.show('Invalid email format.', 'error'); return; }
+            if (subData.startDate && subData.expiryDate && !Utils.isExpiryAfterStart(subData.startDate, subData.expiryDate)) { Toast.show('Expiry date must be after start date.', 'error'); return; }
 
             try {
                 Toast.show('Saving changes...', 'info');
