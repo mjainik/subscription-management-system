@@ -74,6 +74,7 @@
                     <button class="filter-btn" data-days="60" onclick="filterByDays(60, this)">60 days</button>
                     <button class="filter-btn" data-days="90" onclick="filterByDays(90, this)">90 days</button>
                 </div>
+                <button class="btn btn-text btn-sm" onclick="clearAllFilters()" id="clear-filters-btn" style="display:none;color:var(--error);">Clear All Filters</button>
             </div>
 
             <!-- Table -->
@@ -192,6 +193,30 @@
             }
         }
 
+        function clearAllFilters() {
+            document.getElementById('search-input').value = '';
+            document.getElementById('filter-status').value = '';
+            document.getElementById('filter-type').value = '';
+            document.getElementById('filter-org-type').value = '';
+            document.getElementById('filter-pay-status').value = '';
+            document.getElementById('filter-manager').value = '';
+            daysFilter = null;
+            document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById('clear-filters-btn').style.display = 'none';
+            applyFilters();
+        }
+
+        function showClearButton() {
+            const hasFilter = document.getElementById('search-input').value ||
+                document.getElementById('filter-status').value ||
+                document.getElementById('filter-type').value ||
+                document.getElementById('filter-org-type').value ||
+                document.getElementById('filter-pay-status').value ||
+                document.getElementById('filter-manager').value ||
+                daysFilter !== null;
+            document.getElementById('clear-filters-btn').style.display = hasFilter ? '' : 'none';
+        }
+
         function applyFilters() {
             const search = document.getElementById('search-input').value.toLowerCase();
             const statusFilter = document.getElementById('filter-status').value;
@@ -241,6 +266,7 @@
 
             sortIssues();
             renderTable();
+            showClearButton();
         }
 
         const debouncedSearch = Utils.debounce(() => applyFilters(), 300);
