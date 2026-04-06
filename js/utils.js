@@ -248,11 +248,11 @@ const Utils = {
             totalPaid = parseFloat((payment['Total Paid'] || '0').replace(/[^0-9.]/g, '')) || 0;
         }
 
-        const remaining = contractValue - totalPaid;
-        const percentage = contractValue > 0 ? Math.round((totalPaid / contractValue) * 100) : 0;
+        const remaining = Math.max(0, contractValue - totalPaid);
+        const percentage = contractValue > 0 ? Math.min(100, Math.round((totalPaid / contractValue) * 100)) : (totalPaid > 0 ? 100 : 0);
 
         let status = 'Due';
-        if (contractValue > 0 && totalPaid >= contractValue) status = 'Fully Paid';
+        if (totalPaid > 0 && (contractValue === 0 || totalPaid >= contractValue)) status = 'Fully Paid';
         else if (totalPaid > 0) status = 'Partially Paid';
 
         if (paymentHistory) {
@@ -350,11 +350,20 @@ const Utils = {
             const startDate = paymentData.firstPaymentDate || '';
             const currSym = this.getCurrencySymbol(paymentData.currency);
 
+            // Calculate spacing from actual contract duration (not hardcoded 12 months)
+            let totalMonths = 12; // default fallback
+            if (startDate && paymentData.expiryDate) {
+                const sDate = new Date(startDate + 'T00:00:00');
+                const eDate = new Date(paymentData.expiryDate + 'T00:00:00');
+                totalMonths = Math.max(1, (eDate.getFullYear() - sDate.getFullYear()) * 12 + (eDate.getMonth() - sDate.getMonth()));
+            }
+            const monthSpacing = Math.max(1, Math.floor(totalMonths / numInstallments));
+
             for (let i = 0; i < numInstallments; i++) {
                 let dueDate = '';
                 if (startDate) {
                     const d = new Date(startDate + 'T00:00:00');
-                    d.setMonth(d.getMonth() + (i * Math.floor(12 / numInstallments)));
+                    d.setMonth(d.getMonth() + (i * monthSpacing));
                     dueDate = this.formatDateApi(d);
                 }
                 const installmentAmount = i === numInstallments - 1

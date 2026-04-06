@@ -950,6 +950,7 @@
                     schedule: document.getElementById('pay-schedule').value,
                     installments: document.getElementById('pay-installments').value,
                     firstPaymentDate: document.getElementById('pay-first-date').value,
+                    expiryDate: earliestExpiry || '',
                     totalPaid: currSym + '0',
                     remaining: contractVal ? currSym + contractVal : '',
                     status: 'Due',

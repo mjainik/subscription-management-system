@@ -549,6 +549,17 @@
                 return;
             }
 
+            // Check for overpayment
+            const currentPaySummary = Utils.calculatePaymentSummary(currentParsed.payment || {}, currentParsed.paymentHistory || []);
+            if (currentPaySummary.contractValue > 0) {
+                const wouldBeTotalPaid = currentPaySummary.totalPaid + paidAmount;
+                if (wouldBeTotalPaid > currentPaySummary.contractValue) {
+                    const excess = wouldBeTotalPaid - currentPaySummary.contractValue;
+                    const proceed = confirm(`This payment of ${paidAmount.toLocaleString()} will exceed the contract value by ${excess.toLocaleString()}.\n\nTotal Paid will be: ${wouldBeTotalPaid.toLocaleString()}\nContract Value: ${currentPaySummary.contractValue.toLocaleString()}\n\nContinue?`);
+                    if (!proceed) return;
+                }
+            }
+
             try {
                 Toast.show('Recording payment...', 'info');
 
@@ -763,8 +774,18 @@
                     </div>
                     <div class="form-group"><label>${fieldLabel}</label><input type="text" id="edit-batch-names" value="${Utils.escapeHtml(fieldValue)}" /></div>
                     <div class="form-row">
-                        <div class="form-group"><label>Start Date</label><input type="date" id="edit-batch-start" value="${batch['Start Date'] || ''}" /></div>
-                        <div class="form-group"><label>Expiry Date</label><input type="date" id="edit-batch-expiry" value="${batch['Expiry Date'] || ''}" /></div>
+                        <div class="form-group"><label>Start Date</label>
+                            <div class="date-input-wrapper">
+                                <input type="text" id="edit-batch-start-display" class="date-display" value="${batch['Start Date'] ? Utils.formatDate(batch['Start Date']) : ''}" placeholder="DD-MMM-YYYY" readonly />
+                                <input type="date" id="edit-batch-start" value="${batch['Start Date'] || ''}" onchange="onDateChange('edit-batch-start')" class="date-hidden" />
+                            </div>
+                        </div>
+                        <div class="form-group"><label>Expiry Date</label>
+                            <div class="date-input-wrapper">
+                                <input type="text" id="edit-batch-expiry-display" class="date-display" value="${batch['Expiry Date'] ? Utils.formatDate(batch['Expiry Date']) : ''}" placeholder="DD-MMM-YYYY" readonly />
+                                <input type="date" id="edit-batch-expiry" value="${batch['Expiry Date'] || ''}" onchange="onDateChange('edit-batch-expiry')" class="date-hidden" />
+                            </div>
+                        </div>
                     </div>
                     <div class="form-row">
                         <div class="form-group"><label>Amount</label><input type="text" id="edit-batch-amount" value="${Utils.escapeHtml(batch['Amount'] || '')}" /></div>
