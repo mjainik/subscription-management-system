@@ -394,9 +394,15 @@
             loadRecentActivity();
         }
 
-        // ─── Helper: format currency (short form) ──────
+        // ─── Helper: format amount (no currency symbol on dashboard) ──────
         function formatAmount(amount) {
-            return Utils.formatCurrencyShort(amount);
+            if (!amount && amount !== 0) return '—';
+            const num = typeof amount === 'string' ? parseFloat(amount.replace(/[^0-9.-]/g, '')) : amount;
+            if (isNaN(num)) return '—';
+            if (num >= 10000000) return (num / 10000000).toFixed(1) + ' Cr';
+            if (num >= 100000) return (num / 100000).toFixed(1) + ' L';
+            if (num >= 1000) return (num / 1000).toFixed(1) + ' K';
+            return num.toLocaleString();
         }
 
         // ─── Metric card with hover list ─────────────────
