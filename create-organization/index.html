@@ -195,15 +195,21 @@
                         <div class="form-row">
                             <div class="form-group">
                                 <label for="sub-type">Subscription Type *</label>
-                                <select id="sub-type" required onchange="autoSetDates()">
+                                <select id="sub-type" required onchange="onSubTypeChange()">
                                     <option value="">Select type</option>
                                     <option value="Annual">Annual</option>
                                     <option value="Monthly">Monthly</option>
                                     <option value="Quarterly">Quarterly</option>
+                                    <option value="Custom">Custom (set duration)</option>
                                 </select>
                                 <div class="form-error" id="sub-type-error"></div>
                             </div>
-                            <div class="form-group">
+                            <div class="form-group" id="custom-duration-group" style="display:none;">
+                                <label for="sub-custom-months">Duration (months) *</label>
+                                <input type="number" id="sub-custom-months" placeholder="e.g., 42 for 3.5 years" min="1" max="120" onchange="autoSetDates()" />
+                                <small id="custom-duration-hint"></small>
+                            </div>
+                            <div class="form-group" id="plan-name-group">
                                 <label for="sub-plan">Plan Name</label>
                                 <input type="text" id="sub-plan" placeholder="e.g., Enterprise, Pro, Basic" />
                             </div>
@@ -506,6 +512,23 @@
             document.getElementById('installments-section').style.display = schedule === 'Installments' ? 'block' : 'none';
         }
 
+        // Handle subscription type change
+        function onSubTypeChange() {
+            const type = document.getElementById('sub-type').value;
+            const customGroup = document.getElementById('custom-duration-group');
+            const planGroup = document.getElementById('plan-name-group');
+
+            if (type === 'Custom') {
+                customGroup.style.display = '';
+                planGroup.style.display = 'none';
+                // Don't auto-set dates yet — wait for months input
+            } else {
+                customGroup.style.display = 'none';
+                planGroup.style.display = '';
+                autoSetDates();
+            }
+        }
+
         // Auto-set dates based on subscription type
         function autoSetDates() {
             const type = document.getElementById('sub-type').value;
@@ -514,7 +537,6 @@
             const billingInput = document.getElementById('sub-billing');
             const cycleSelect = document.getElementById('sub-cycle');
 
-            // If no type selected, do nothing
             if (!type) return;
 
             // Set start date to today if empty
@@ -532,6 +554,19 @@
                 expiryDate.setMonth(expiryDate.getMonth() + 1);
             } else if (type === 'Quarterly') {
                 expiryDate.setMonth(expiryDate.getMonth() + 3);
+            } else if (type === 'Custom') {
+                const months = parseInt(document.getElementById('sub-custom-months').value);
+                if (!months || months <= 0) return;
+                expiryDate.setMonth(expiryDate.getMonth() + months);
+
+                // Show human-readable duration hint
+                const years = Math.floor(months / 12);
+                const remainingMonths = months % 12;
+                let hint = '';
+                if (years > 0) hint += years + (years === 1 ? ' year' : ' years');
+                if (years > 0 && remainingMonths > 0) hint += ' ';
+                if (remainingMonths > 0) hint += remainingMonths + (remainingMonths === 1 ? ' month' : ' months');
+                document.getElementById('custom-duration-hint').textContent = '= ' + hint + ' (until ' + Utils.formatDate(Utils.formatDateApi(expiryDate)) + ')';
             }
 
             // Set expiry date
@@ -542,8 +577,15 @@
                 setDateValue('sub-billing', startInput.value);
             }
 
-            // Set payment cycle to match type
-            cycleSelect.value = type;
+            // Set payment cycle — for custom, pick the closest match
+            if (type === 'Custom') {
+                const months = parseInt(document.getElementById('sub-custom-months').value) || 12;
+                if (months <= 1) cycleSelect.value = 'Monthly';
+                else if (months <= 3) cycleSelect.value = 'Quarterly';
+                else cycleSelect.value = 'Annual';
+            } else {
+                cycleSelect.value = type;
+            }
 
             // Highlight auto-filled display fields
             ['sub-start-display', 'sub-expiry-display', 'sub-billing-display'].forEach(id => {
@@ -594,9 +636,16 @@
             }
 
             // Subscription type
-            if (!document.getElementById('sub-type').value) {
+            const subTypeVal = document.getElementById('sub-type').value;
+            if (!subTypeVal) {
                 document.getElementById('sub-type-error').textContent = 'Subscription type is required.';
                 valid = false;
+            } else if (subTypeVal === 'Custom') {
+                const customMonths = parseInt(document.getElementById('sub-custom-months').value);
+                if (!customMonths || customMonths <= 0) {
+                    document.getElementById('sub-type-error').textContent = 'Please enter duration in months.';
+                    valid = false;
+                }
             }
 
             // Start date
@@ -650,8 +699,14 @@
                     licenses: document.getElementById('org-licenses').value
                 };
 
+                const rawType = document.getElementById('sub-type').value;
+                const customMonths = document.getElementById('sub-custom-months').value;
+                const subTypeLabel = rawType === 'Custom' && customMonths
+                    ? `Custom (${customMonths} months)`
+                    : rawType;
+
                 const subData = {
-                    type: document.getElementById('sub-type').value,
+                    type: subTypeLabel,
                     planName: document.getElementById('sub-plan').value.trim(),
                     startDate: document.getElementById('sub-start').value,
                     expiryDate: document.getElementById('sub-expiry').value,

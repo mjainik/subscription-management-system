@@ -562,6 +562,7 @@
                         <div class="form-group"><label>Subscription Type</label>
                             <select id="edit-sub-type">
                                 ${['Annual','Monthly','Quarterly'].map(t => `<option value="${t}" ${(sub['Subscription Type'] || '') === t ? 'selected' : ''}>${t}</option>`).join('')}
+                                <option value="Custom" ${(sub['Subscription Type'] || '').startsWith('Custom') ? 'selected' : ''}>Custom</option>
                             </select>
                         </div>
                         <div class="form-group"><label>Plan Name</label><input type="text" id="edit-plan" value="${Utils.escapeHtml(sub['Plan Name'] || '')}" /></div>
@@ -769,7 +770,7 @@
                     </div>
                     <div class="form-row">
                         <div class="form-group"><label>Subscription Type *</label>
-                            <select id="new-sub-type"><option value="Annual">Annual</option><option value="Monthly">Monthly</option><option value="Quarterly">Quarterly</option></select>
+                            <select id="new-sub-type"><option value="Annual">Annual</option><option value="Monthly">Monthly</option><option value="Quarterly">Quarterly</option><option value="Custom">Custom</option></select>
                         </div>
                         <div class="form-group"><label>Plan Name</label><input type="text" id="new-sub-plan" placeholder="e.g., Enterprise" /></div>
                     </div>
