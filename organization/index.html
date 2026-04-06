@@ -713,7 +713,8 @@
                     <div class="form-row">
                         <div class="form-group"><label>Amount</label><input type="number" id="new-batch-amount" placeholder="e.g., 200000" min="0" /></div>
                         <div class="form-group"><label>Payment Cycle</label>
-                            <select id="new-batch-cycle"><option value="">Select</option><option value="Monthly">Monthly</option><option value="Quarterly">Quarterly</option><option value="Annual">Annual</option></select>
+                            <select id="new-batch-cycle" onchange="document.getElementById('new-batch-cycle-custom').style.display=this.value==='Other'?'':'none'"><option value="">Select</option><option value="Monthly">Monthly</option><option value="Quarterly">Quarterly</option><option value="Annual">Annual</option><option value="Other">Other (custom)</option></select>
+                            <input type="text" id="new-batch-cycle-custom" placeholder="e.g., Bi-Annual" style="display:none;margin-top:6px;" />
                         </div>
                     </div>
                     <button class="btn btn-primary" onclick="saveNewBatch('${batchType}')">Add ${label} Batch</button>
@@ -746,11 +747,11 @@
                 const newBatch = isProject ? {
                     projects: names, startDate: start, expiryDate: expiry,
                     amount: amountVal ? currSym + amountVal : '', currency: currency,
-                    paymentCycle: document.getElementById('new-batch-cycle').value
+                    paymentCycle: document.getElementById('new-batch-cycle').value === 'Other' ? (document.getElementById('new-batch-cycle-custom').value.trim() || 'Other') : document.getElementById('new-batch-cycle').value
                 } : {
                     users: names, startDate: start, expiryDate: expiry,
                     amount: amountVal ? currSym + amountVal : '', currency: currency,
-                    paymentCycle: document.getElementById('new-batch-cycle').value
+                    paymentCycle: document.getElementById('new-batch-cycle').value === 'Other' ? (document.getElementById('new-batch-cycle-custom').value.trim() || 'Other') : document.getElementById('new-batch-cycle').value
                 };
 
                 // Rebuild with new batch added
@@ -898,9 +899,11 @@
                     <div class="form-row">
                         <div class="form-group"><label>Billing Date</label><input type="date" id="edit-billing" value="${sub['Billing Date'] || ''}" /></div>
                         <div class="form-group"><label>Payment Cycle</label>
-                            <select id="edit-cycle">
+                            <select id="edit-cycle" onchange="document.getElementById('edit-cycle-custom').style.display=this.value==='Other'?'':'none'">
                                 ${['Monthly','Quarterly','Annual'].map(t => `<option value="${t}" ${(sub['Payment Cycle'] || '') === t ? 'selected' : ''}>${t}</option>`).join('')}
+                                <option value="Other" ${!['Monthly','Quarterly','Annual',''].includes(sub['Payment Cycle'] || '') ? 'selected' : ''}>Other (custom)</option>
                             </select>
+                            <input type="text" id="edit-cycle-custom" value="${!['Monthly','Quarterly','Annual',''].includes(sub['Payment Cycle'] || '') ? Utils.escapeHtml(sub['Payment Cycle']) : ''}" placeholder="e.g., Bi-Annual" style="display:${!['Monthly','Quarterly','Annual',''].includes(sub['Payment Cycle'] || '') ? '' : 'none'};margin-top:6px;" />
                         </div>
                     </div>
                     <div class="form-row">
@@ -985,7 +988,7 @@
                 startDate: document.getElementById('edit-start').value,
                 expiryDate: document.getElementById('edit-expiry').value,
                 billingDate: document.getElementById('edit-billing').value,
-                paymentCycle: document.getElementById('edit-cycle').value,
+                paymentCycle: document.getElementById('edit-cycle').value === 'Other' ? (document.getElementById('edit-cycle-custom').value.trim() || 'Other') : document.getElementById('edit-cycle').value,
                 amount: document.getElementById('edit-amount').value,
                 currency: document.getElementById('edit-currency').value,
                 autoRenew: 'No'

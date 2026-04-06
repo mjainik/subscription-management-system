@@ -255,7 +255,8 @@
                             <div class="form-row">
                                 <div class="form-group">
                                     <label>Payment Cycle</label>
-                                    <select id="plat-cycle"><option value="">Select</option><option value="Monthly">Monthly</option><option value="Quarterly">Quarterly</option><option value="Annual">Annual</option></select>
+                                    <select id="plat-cycle" onchange="toggleCustomCycle('plat-cycle','plat-cycle-custom')"><option value="">Select</option><option value="Monthly">Monthly</option><option value="Quarterly">Quarterly</option><option value="Annual">Annual</option><option value="Other">Other (custom)</option></select>
+                                    <input type="text" id="plat-cycle-custom" placeholder="e.g., Bi-Annual, Weekly" style="display:none;margin-top:6px;" />
                                 </div>
                                 <div class="form-group"></div>
                             </div>
@@ -515,6 +516,32 @@
             onDateChange(id);
         }
 
+        // Toggle custom cycle input (by ID)
+        function toggleCustomCycle(selectId, customId) {
+            const sel = document.getElementById(selectId);
+            const inp = document.getElementById(customId);
+            inp.style.display = sel.value === 'Other' ? '' : 'none';
+            if (sel.value !== 'Other') inp.value = '';
+        }
+
+        // Toggle custom cycle input (by element — for dynamic batch forms)
+        function toggleCustomCycleByEl(selectEl) {
+            const customInput = selectEl.parentElement.querySelector('[class*="-cycle-custom"]');
+            if (customInput) {
+                customInput.style.display = selectEl.value === 'Other' ? '' : 'none';
+                if (selectEl.value !== 'Other') customInput.value = '';
+            }
+        }
+
+        // Get cycle value (handles custom)
+        function getCycleValue(selectEl) {
+            if (selectEl.value === 'Other') {
+                const customInput = selectEl.parentElement.querySelector('[class*="-cycle-custom"]');
+                return customInput ? (customInput.value.trim() || 'Other') : 'Other';
+            }
+            return selectEl.value;
+        }
+
         // Toggle installments section
         function toggleInstallments() {
             const schedule = document.getElementById('pay-schedule').value;
@@ -604,7 +631,8 @@
                     </div>
                     <div class="form-group">
                         <label>Payment Cycle</label>
-                        <select class="proj-cycle"><option value="">Select</option><option value="Monthly">Monthly</option><option value="Quarterly">Quarterly</option><option value="Annual">Annual</option></select>
+                        <select class="proj-cycle" onchange="toggleCustomCycleByEl(this)"><option value="">Select</option><option value="Monthly">Monthly</option><option value="Quarterly">Quarterly</option><option value="Annual">Annual</option><option value="Other">Other (custom)</option></select>
+                        <input type="text" class="proj-cycle-custom" placeholder="e.g., Bi-Annual" style="display:none;margin-top:6px;" />
                     </div>
                 </div>
             `;
@@ -644,7 +672,8 @@
                     </div>
                     <div class="form-group">
                         <label>Payment Cycle</label>
-                        <select class="user-cycle"><option value="">Select</option><option value="Monthly">Monthly</option><option value="Quarterly">Quarterly</option><option value="Annual">Annual</option></select>
+                        <select class="user-cycle" onchange="toggleCustomCycleByEl(this)"><option value="">Select</option><option value="Monthly">Monthly</option><option value="Quarterly">Quarterly</option><option value="Annual">Annual</option><option value="Other">Other (custom)</option></select>
+                        <input type="text" class="user-cycle-custom" placeholder="e.g., Bi-Annual" style="display:none;margin-top:6px;" />
                     </div>
                 </div>
             `;
@@ -662,7 +691,7 @@
                     expiryDate: card.querySelector('.proj-expiry').value,
                     amount: card.querySelector('.proj-amount').value ? Utils.getCurrencySymbol(currency) + card.querySelector('.proj-amount').value : '',
                     currency: currency,
-                    paymentCycle: card.querySelector('.proj-cycle').value
+                    paymentCycle: getCycleValue(card.querySelector('.proj-cycle'))
                 });
             });
             return batches;
@@ -678,7 +707,7 @@
                     expiryDate: card.querySelector('.user-expiry').value,
                     amount: card.querySelector('.user-amount').value ? Utils.getCurrencySymbol(currency) + card.querySelector('.user-amount').value : '',
                     currency: currency,
-                    paymentCycle: card.querySelector('.user-cycle').value
+                    paymentCycle: getCycleValue(card.querySelector('.user-cycle'))
                 });
             });
             return batches;
@@ -788,7 +817,7 @@
                         startDate: document.getElementById('plat-start').value,
                         expiryDate: document.getElementById('plat-expiry').value,
                         billingDate: document.getElementById('plat-start').value,
-                        paymentCycle: document.getElementById('plat-cycle').value || platType,
+                        paymentCycle: getCycleValue(document.getElementById('plat-cycle')) || platType,
                         amount: document.getElementById('plat-amount').value ? currSym + document.getElementById('plat-amount').value : '',
                         currency: currency,
                         autoRenew: 'No'
