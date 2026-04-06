@@ -8,28 +8,19 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 </head>
 <body>
-    <!-- Header -->
     <header class="app-header" id="app-header"></header>
 
     <div class="app-layout">
-        <!-- Sidebar -->
         <aside class="app-sidebar" id="app-nav"></aside>
 
-        <!-- Main Content -->
         <main class="app-main" id="app-content">
-            <!-- Setup Banner -->
             <div id="setup-banner"></div>
-
             <div id="dashboard-content">
-                <div class="loader">
-                    <div class="spinner"></div>
-                    <p>Loading dashboard...</p>
-                </div>
+                <div class="loader"><div class="spinner"></div><p>Loading dashboard...</p></div>
             </div>
         </main>
     </div>
 
-    <!-- Scripts -->
     <script src="js/config.js"></script>
     <script src="js/utils.js"></script>
     <script src="js/auth.js"></script>
@@ -39,7 +30,6 @@
     <script src="lib/html2pdf.bundle.min.js" defer></script>
 
     <script>
-        // Initialize page
         document.addEventListener('DOMContentLoaded', () => {
             Header.render([{ label: 'Dashboard' }]);
             Nav.render('dashboard');
@@ -48,34 +38,22 @@
             if (Auth.isAuthenticated()) {
                 onAuthReady();
             } else {
-                // Not authenticated — show welcome message instead of loader
                 document.getElementById('dashboard-content').innerHTML = `
                     <div class="empty-state">
                         <div class="empty-state-icon">👋</div>
                         <h3>Welcome to Subscription Manager</h3>
                         <p>Enter your name and GitHub token above to get started.</p>
-                    </div>
-                `;
+                    </div>`;
             }
         });
 
-        // Called after authentication
-        async function onAuthReady() {
-            await loadDashboard();
-        }
+        async function onAuthReady() { await loadDashboard(); }
 
-        // Load dashboard data
         async function loadDashboard() {
             const container = document.getElementById('dashboard-content');
-
             try {
-                // Fetch metrics and organizations in parallel
-                const [metrics, orgsData] = await Promise.all([
-                    GitHubAPI.getDashboardMetrics(),
-                    GitHubAPI.getOrganizations({ first: 100 })
-                ]);
-
-                renderDashboard(metrics, orgsData.issues);
+                const orgsData = await GitHubAPI.getOrganizations({ first: 100 });
+                renderDashboard(orgsData.issues);
             } catch (error) {
                 container.innerHTML = `
                     <div class="empty-state">
@@ -83,68 +61,127 @@
                         <h3>Failed to load dashboard</h3>
                         <p>${Utils.escapeHtml(error.message)}</p>
                         <button class="btn btn-primary" onclick="loadDashboard()">Retry</button>
-                    </div>
-                `;
+                    </div>`;
             }
         }
 
-        // Render dashboard
-        function renderDashboard(metrics, issues) {
+        function renderDashboard(issues) {
             const container = document.getElementById('dashboard-content');
-
-            // Get renewals due this month
             const now = new Date();
             const currentMonth = now.getMonth();
             const currentYear = now.getFullYear();
 
-            const renewalsThisMonth = [];
-            const expiryByMonth = {};
-            const allOrgsList = [];
+            // ─── Categorize all data ─────────────────────────
+            const allOrgs = [];
             const activeOrgs = [];
             const expiringOrgs = [];
             const expiredOrgs = [];
+            const renewalsThisMonth = [];
+            const overduePayments = [];
+            const expiryByMonth = {};
+            const revenueByOrgType = {};
+            const revenueBySubType = {};
+            const revenueByManager = {};
+            const managerWorkload = {};
+
+            let totalContractValue = 0;
+            let totalCollected = 0;
+            let totalRemaining = 0;
+            let totalOverdue = 0;
+            let atRiskRevenue = 0;
 
             for (const issue of issues) {
                 const parsed = Utils.parseIssueBody(issue.body);
-                const expiryDate = Utils.getEarliestExpiry(parsed.subscriptions);
+                const org = parsed.organization;
                 const sub = parsed.subscriptions[0] || {};
+                const payment = parsed.payment || {};
+                const payHistory = parsed.paymentHistory || [];
+                const expiryDate = Utils.getEarliestExpiry(parsed.subscriptions);
+                const paySummary = Utils.calculatePaymentSummary(payment, payHistory);
 
                 const orgInfo = {
                     number: issue.number,
                     title: issue.title,
-                    expiryDate: expiryDate,
+                    expiryDate,
                     days: expiryDate ? Utils.remainingDays(expiryDate) : null,
                     amount: sub['Amount'] || '—',
-                    type: sub['Subscription Type'] || '—'
+                    type: sub['Subscription Type'] || '—',
+                    orgType: org['Organization Type'] || 'Other',
+                    manager: org['Account Manager'] || 'Unassigned',
+                    contractValue: paySummary.contractValue,
+                    totalPaid: paySummary.totalPaid,
+                    remaining: paySummary.remaining,
+                    payStatus: paySummary.status,
+                    payPercentage: paySummary.percentage
                 };
 
-                allOrgsList.push(orgInfo);
+                allOrgs.push(orgInfo);
+
+                // Revenue totals
+                totalContractValue += paySummary.contractValue;
+                totalCollected += paySummary.totalPaid;
+                totalRemaining += paySummary.remaining;
+
+                // Revenue by org type
+                revenueByOrgType[orgInfo.orgType] = (revenueByOrgType[orgInfo.orgType] || 0) + paySummary.contractValue;
+
+                // Revenue by subscription type
+                revenueBySubType[orgInfo.type] = (revenueBySubType[orgInfo.type] || 0) + paySummary.contractValue;
+
+                // Manager workload
+                const mgr = orgInfo.manager;
+                if (!managerWorkload[mgr]) managerWorkload[mgr] = { orgs: 0, revenue: 0, renewalsDue: 0 };
+                managerWorkload[mgr].orgs++;
+                managerWorkload[mgr].revenue += paySummary.contractValue;
+
+                // Overdue payments
+                if (paySummary.status === 'Overdue') {
+                    totalOverdue += paySummary.remaining;
+                    overduePayments.push(orgInfo);
+                }
+
+                // Check individual payment history for overdue items
+                for (const p of payHistory) {
+                    if (p.status === 'Due' && p.date && new Date(p.date) < now) {
+                        const amt = parseFloat((p.amount || '0').replace(/[^0-9.]/g, '')) || 0;
+                        if (!overduePayments.find(o => o.number === issue.number)) {
+                            totalOverdue += amt;
+                            overduePayments.push(orgInfo);
+                        }
+                    }
+                }
 
                 if (!expiryDate) continue;
 
-                // Categorize by status
+                // Status categorization
                 const status = Utils.getStatus(expiryDate);
                 if (status === 'active') activeOrgs.push(orgInfo);
-                else if (status === 'expiringSoon') expiringOrgs.push(orgInfo);
+                else if (status === 'expiringSoon') {
+                    expiringOrgs.push(orgInfo);
+                    atRiskRevenue += paySummary.contractValue;
+                    managerWorkload[mgr].renewalsDue++;
+                }
                 else if (status === 'expired') expiredOrgs.push(orgInfo);
 
+                // Expiry by month
                 const expiry = new Date(expiryDate);
                 const monthKey = `${expiry.getFullYear()}-${String(expiry.getMonth() + 1).padStart(2, '0')}`;
-
-                // Count by month for chart
                 expiryByMonth[monthKey] = (expiryByMonth[monthKey] || 0) + 1;
 
                 // Renewals this month
                 if (expiry.getMonth() === currentMonth && expiry.getFullYear() === currentYear) {
                     renewalsThisMonth.push(orgInfo);
+                    managerWorkload[mgr].renewalsDue++;
                 }
             }
 
             renewalsThisMonth.sort((a, b) => a.days - b.days);
             expiringOrgs.sort((a, b) => a.days - b.days);
-            expiredOrgs.sort((a, b) => a.days - b.days);
+            allOrgs.sort((a, b) => b.contractValue - a.contractValue);
 
-            // Build expiry chart data (next 6 months)
+            const collectionPct = totalContractValue > 0 ? Math.round((totalCollected / totalContractValue) * 100) : 0;
+
+            // Expiry chart data
             const chartMonths = [];
             for (let i = 0; i < 6; i++) {
                 const d = new Date(currentYear, currentMonth + i, 1);
@@ -152,281 +189,406 @@
                 const label = d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
                 chartMonths.push({ key, label, count: expiryByMonth[key] || 0 });
             }
-
             const maxCount = Math.max(...chartMonths.map(m => m.count), 1);
 
+            // Revenue breakdown chart data
+            const orgTypeEntries = Object.entries(revenueByOrgType).sort((a, b) => b[1] - a[1]);
+            const subTypeEntries = Object.entries(revenueBySubType).sort((a, b) => b[1] - a[1]);
+            const maxOrgTypeRev = orgTypeEntries.length > 0 ? orgTypeEntries[0][1] : 1;
+            const maxSubTypeRev = subTypeEntries.length > 0 ? subTypeEntries[0][1] : 1;
+
+            // Manager workload
+            const managerEntries = Object.entries(managerWorkload).sort((a, b) => b[1].revenue - a[1].revenue);
+
+            // Top accounts
+            const topAccounts = allOrgs.slice(0, 5);
+
+            // ─── Render ──────────────────────────────────────
             container.innerHTML = `
                 <div id="dashboard-export-area">
-                    <!-- Page Header -->
                     <div class="page-header">
                         <div>
                             <h1 class="page-title">Dashboard</h1>
                             <p class="page-subtitle">Subscription overview and insights</p>
                         </div>
-                        <button class="btn btn-secondary" onclick="Export.downloadPDF('dashboard-export-area', 'dashboard-${Utils.formatDateApi(new Date())}.pdf')">
-                            Export PDF ⬇
-                        </button>
+                        <button class="btn btn-secondary" onclick="Export.downloadPDF('dashboard-export-area', 'dashboard-${Utils.formatDateApi(new Date())}.pdf')">Export PDF ⬇</button>
                     </div>
 
-                    <!-- Metric Cards (counts computed from dates, not labels) -->
+                    <!-- ═══ Organization Overview ═══ -->
+                    <div class="dash-section-title">Organization Overview</div>
                     <div class="metrics-grid">
-                        ${renderMetricWithList('Total Organizations', issues.length, 'default', '🏢', allOrgsList)}
+                        ${renderMetricWithList('Total Organizations', issues.length, 'default', '🏢', allOrgs)}
                         ${renderMetricWithList('Active', activeOrgs.length, 'success', '✅', activeOrgs)}
                         ${renderMetricWithList('Expiring Soon', expiringOrgs.length, 'warning', '⚠️', expiringOrgs)}
                         ${renderMetricWithList('Expired', expiredOrgs.length, 'error', '❌', expiredOrgs)}
                     </div>
 
-                    <!-- Expiry Timeline -->
-                    <div class="card" style="margin-bottom: 24px;">
+                    <!-- ═══ Revenue Overview ═══ -->
+                    <div class="dash-section-title">Revenue Overview</div>
+                    <div class="metrics-grid metrics-grid-5">
+                        ${renderRevenueCard('Contract Value', totalContractValue, '💰', '')}
+                        ${renderRevenueCard('Collected', totalCollected, '✅', 'success', collectionPct + '%')}
+                        ${renderRevenueCard('Remaining', totalRemaining, '⏳', 'warning')}
+                        ${renderRevenueCard('Overdue', totalOverdue, '🔴', 'error', overduePayments.length + ' orgs')}
+                        ${renderRevenueCard('At Risk', atRiskRevenue, '⚠️', 'warning', expiringOrgs.length + ' expiring')}
+                    </div>
+
+                    <!-- Collection Progress -->
+                    <div class="card" style="margin-bottom:24px;">
                         <div class="card-header">
-                            <h3 class="card-title">Expiry Timeline (Next 6 Months)</h3>
+                            <h3 class="card-title">Collection Progress</h3>
+                            <span style="font-size:13px;color:var(--text-secondary);">${formatINR(totalCollected)} of ${formatINR(totalContractValue)}</span>
                         </div>
-                        <div class="chart-container">
-                            ${chartMonths.map(m => `
-                                <div class="chart-bar-row">
-                                    <span class="chart-label">${m.label}</span>
-                                    <div class="chart-bar-track">
-                                        <div class="chart-bar" style="width: ${(m.count / maxCount) * 100}%"></div>
-                                    </div>
-                                    <span class="chart-value">${m.count}</span>
-                                </div>
-                            `).join('')}
+                        <div class="collection-progress-track">
+                            <div class="collection-progress-fill" style="width:${collectionPct}%"></div>
+                        </div>
+                        <div style="display:flex;justify-content:space-between;margin-top:6px;">
+                            <span style="font-size:12px;color:var(--text-muted);">0%</span>
+                            <span style="font-size:13px;font-weight:700;color:${collectionPct >= 75 ? 'var(--success)' : collectionPct >= 50 ? 'var(--warning)' : 'var(--error)'};">${collectionPct}% Collected</span>
+                            <span style="font-size:12px;color:var(--text-muted);">100%</span>
                         </div>
                     </div>
 
-                    <!-- Renewals Due This Month -->
-                    <div class="card" style="margin-bottom: 24px;">
+                    <!-- ═══ Revenue Breakdown + Expiry Timeline (side by side) ═══ -->
+                    <div class="dash-grid-2">
+                        <!-- Revenue by Org Type -->
+                        <div class="card">
+                            <div class="card-header"><h3 class="card-title">Revenue by Organization Type</h3></div>
+                            ${orgTypeEntries.length > 0 ? orgTypeEntries.map(([type, rev]) => {
+                                const pct = totalContractValue > 0 ? Math.round((rev / totalContractValue) * 100) : 0;
+                                return `<div class="breakdown-row">
+                                    <span class="breakdown-label">${Utils.escapeHtml(type)}</span>
+                                    <div class="breakdown-bar-track"><div class="breakdown-bar" style="width:${(rev / maxOrgTypeRev) * 100}%"></div></div>
+                                    <span class="breakdown-value">${pct}%</span>
+                                </div>`;
+                            }).join('') : '<p style="color:var(--text-muted);padding:16px;">No data</p>'}
+                        </div>
+
+                        <!-- Revenue by Subscription Type -->
+                        <div class="card">
+                            <div class="card-header"><h3 class="card-title">Revenue by Subscription Type</h3></div>
+                            ${subTypeEntries.length > 0 ? subTypeEntries.map(([type, rev]) => {
+                                const pct = totalContractValue > 0 ? Math.round((rev / totalContractValue) * 100) : 0;
+                                return `<div class="breakdown-row">
+                                    <span class="breakdown-label">${Utils.escapeHtml(type)}</span>
+                                    <div class="breakdown-bar-track"><div class="breakdown-bar breakdown-bar-blue" style="width:${(rev / maxSubTypeRev) * 100}%"></div></div>
+                                    <span class="breakdown-value">${pct}%</span>
+                                </div>`;
+                            }).join('') : '<p style="color:var(--text-muted);padding:16px;">No data</p>'}
+                        </div>
+                    </div>
+
+                    <!-- ═══ Expiry Timeline + Manager Workload (side by side) ═══ -->
+                    <div class="dash-grid-2">
+                        <!-- Expiry Timeline -->
+                        <div class="card">
+                            <div class="card-header"><h3 class="card-title">Expiry Timeline (6 Months)</h3></div>
+                            <div class="chart-container">
+                                ${chartMonths.map(m => `
+                                    <div class="chart-bar-row">
+                                        <span class="chart-label">${m.label}</span>
+                                        <div class="chart-bar-track"><div class="chart-bar" style="width:${(m.count / maxCount) * 100}%"></div></div>
+                                        <span class="chart-value">${m.count}</span>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+
+                        <!-- Account Manager Workload -->
+                        <div class="card">
+                            <div class="card-header"><h3 class="card-title">Account Manager Workload</h3></div>
+                            ${managerEntries.length > 0 ? `
+                            <div class="table-container">
+                                <table>
+                                    <thead><tr><th>Manager</th><th>Orgs</th><th>Revenue</th><th>Renewals Due</th></tr></thead>
+                                    <tbody>
+                                        ${managerEntries.map(([mgr, data]) => `
+                                            <tr>
+                                                <td><strong>${Utils.escapeHtml(mgr)}</strong></td>
+                                                <td>${data.orgs}</td>
+                                                <td>${formatINR(data.revenue)}</td>
+                                                <td>${data.renewalsDue > 0 ? `<span class="badge badge-warning">${data.renewalsDue}</span>` : '0'}</td>
+                                            </tr>
+                                        `).join('')}
+                                    </tbody>
+                                </table>
+                            </div>` : '<p style="color:var(--text-muted);padding:16px;">No data</p>'}
+                        </div>
+                    </div>
+
+                    <!-- ═══ Renewals Due This Month ═══ -->
+                    <div class="card" style="margin-bottom:24px;">
                         <div class="card-header">
                             <h3 class="card-title">Renewals Due This Month</h3>
                             <span class="badge badge-warning">${renewalsThisMonth.length} organizations</span>
                         </div>
                         ${renewalsThisMonth.length > 0 ? `
-                            <div class="table-container">
-                                <table>
-                                    <thead>
-                                        <tr>
-                                            <th>Organization</th>
-                                            <th>Expiry Date</th>
-                                            <th>Days Left</th>
-                                            <th>Amount</th>
-                                            <th>Action</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        ${renewalsThisMonth.map(r => `
-                                            <tr onclick="window.location.href='${CONFIG.baseUrl}/organization/?id=${r.number}'">
-                                                <td><strong>${Utils.escapeHtml(r.title)}</strong></td>
-                                                <td>${Utils.formatDate(r.expiryDate)}</td>
-                                                <td>${r.days <= 0
-                                                    ? `<span class="badge badge-error">${r.days} days</span>`
-                                                    : `<span class="badge badge-warning">${r.days} days</span>`
-                                                }</td>
-                                                <td>${Utils.escapeHtml(r.amount)}</td>
-                                                <td><a href="${CONFIG.baseUrl}/organization/?id=${r.number}" class="btn btn-text btn-sm">View</a></td>
-                                            </tr>
-                                        `).join('')}
-                                    </tbody>
-                                </table>
-                            </div>
-                        ` : `
-                            <div class="empty-state" style="padding: 24px;">
-                                <p>No renewals due this month.</p>
-                            </div>
-                        `}
+                        <div class="table-container"><table>
+                            <thead><tr><th>Organization</th><th>Expiry Date</th><th>Days Left</th><th>Contract Value</th><th>Paid</th><th>Action</th></tr></thead>
+                            <tbody>${renewalsThisMonth.map(r => `
+                                <tr onclick="window.location.href='${CONFIG.baseUrl}/organization/?id=${r.number}'">
+                                    <td><strong>${Utils.escapeHtml(r.title)}</strong></td>
+                                    <td>${Utils.formatDate(r.expiryDate)}</td>
+                                    <td>${r.days <= 0 ? `<span class="badge badge-error">${r.days}d</span>` : `<span class="badge badge-warning">${r.days}d</span>`}</td>
+                                    <td>${formatINR(r.contractValue)}</td>
+                                    <td>${r.payPercentage}%</td>
+                                    <td><a href="${CONFIG.baseUrl}/organization/?id=${r.number}" class="btn btn-text btn-sm">View</a></td>
+                                </tr>`).join('')}</tbody>
+                        </table></div>` : '<div class="empty-state" style="padding:24px;"><p>No renewals due this month.</p></div>'}
+                    </div>
+
+                    <!-- ═══ Overdue Payments ═══ -->
+                    ${overduePayments.length > 0 ? `
+                    <div class="card" style="margin-bottom:24px;">
+                        <div class="card-header">
+                            <h3 class="card-title">Overdue Payments</h3>
+                            <span class="badge badge-error">${overduePayments.length} organizations</span>
+                        </div>
+                        <div class="table-container"><table>
+                            <thead><tr><th>Organization</th><th>Contract Value</th><th>Paid</th><th>Remaining</th><th>Status</th><th>Action</th></tr></thead>
+                            <tbody>${overduePayments.map(r => `
+                                <tr onclick="window.location.href='${CONFIG.baseUrl}/organization/?id=${r.number}'">
+                                    <td><strong>${Utils.escapeHtml(r.title)}</strong></td>
+                                    <td>${formatINR(r.contractValue)}</td>
+                                    <td>${formatINR(r.totalPaid)}</td>
+                                    <td style="color:var(--error);font-weight:700;">${formatINR(r.remaining)}</td>
+                                    <td><span class="badge badge-error">Overdue</span></td>
+                                    <td><a href="${CONFIG.baseUrl}/organization/?id=${r.number}" class="btn btn-text btn-sm">View</a></td>
+                                </tr>`).join('')}</tbody>
+                        </table></div>
+                    </div>` : ''}
+
+                    <!-- ═══ Top Accounts by Value ═══ -->
+                    <div class="card" style="margin-bottom:24px;">
+                        <div class="card-header">
+                            <h3 class="card-title">Top Accounts by Value</h3>
+                        </div>
+                        ${topAccounts.length > 0 ? `
+                        <div class="table-container"><table>
+                            <thead><tr><th>Organization</th><th>Contract Value</th><th>Paid</th><th>Collection</th><th>Type</th><th>Status</th></tr></thead>
+                            <tbody>${topAccounts.map(r => {
+                                const statusHtml = r.expiryDate ? Utils.statusBadge(r.expiryDate) : '<span class="badge badge-default">—</span>';
+                                return `
+                                <tr onclick="window.location.href='${CONFIG.baseUrl}/organization/?id=${r.number}'">
+                                    <td><strong>${Utils.escapeHtml(r.title)}</strong></td>
+                                    <td>${formatINR(r.contractValue)}</td>
+                                    <td>${formatINR(r.totalPaid)}</td>
+                                    <td>
+                                        <div class="mini-progress"><div class="mini-progress-fill" style="width:${r.payPercentage}%"></div></div>
+                                        <span style="font-size:11px;color:var(--text-muted);">${r.payPercentage}%</span>
+                                    </td>
+                                    <td><span class="badge badge-default">${Utils.escapeHtml(r.orgType)}</span></td>
+                                    <td>${statusHtml}</td>
+                                </tr>`;
+                            }).join('')}</tbody>
+                        </table></div>` : '<div class="empty-state" style="padding:24px;"><p>No accounts yet.</p></div>'}
                     </div>
                 </div>
 
-                <!-- Recent Activity -->
+                <!-- Recent Activity (outside export area) -->
                 <div class="card">
-                    <div class="card-header">
-                        <h3 class="card-title">Recent Activity</h3>
-                    </div>
-                    <div id="recent-activity">
-                        <div class="loader"><div class="spinner"></div></div>
-                    </div>
+                    <div class="card-header"><h3 class="card-title">Recent Activity</h3></div>
+                    <div id="recent-activity"><div class="loader"><div class="spinner"></div></div></div>
                 </div>
             `;
 
-            // Load recent activity async
             loadRecentActivity();
         }
 
-        // Render metric card with hover dropdown list
-        function renderMetricWithList(label, value, type, icon, orgList) {
-            const colorClass = {
-                default: '',
-                success: 'metric-success',
-                warning: 'metric-warning',
-                error: 'metric-error',
-                info: 'metric-info'
-            };
+        // ─── Helper: format currency (INR-friendly) ──────
+        function formatINR(amount) {
+            if (!amount && amount !== 0) return '—';
+            if (amount >= 10000000) return '₹' + (amount / 10000000).toFixed(1) + 'Cr';
+            if (amount >= 100000) return '₹' + (amount / 100000).toFixed(1) + 'L';
+            if (amount >= 1000) return '₹' + (amount / 1000).toFixed(1) + 'K';
+            return '₹' + amount.toLocaleString();
+        }
 
-            // Build org list for dropdown (max 10)
+        // ─── Metric card with hover list ─────────────────
+        function renderMetricWithList(label, value, type, icon, orgList) {
+            const colorClass = { default: '', success: 'metric-success', warning: 'metric-warning', error: 'metric-error', info: 'metric-info' };
             const displayList = orgList.slice(0, 10);
             const hasMore = orgList.length > 10;
 
             const listHtml = displayList.length > 0 ? displayList.map(org => {
-                const name = org.title || org.title;
-                const days = org.days !== null && org.days !== undefined ? org.days : (org.expiryDate ? Utils.remainingDays(org.expiryDate) : null);
-                const daysText = days !== null ? (days > 0 ? `${days}d left` : `${Math.abs(days)}d overdue`) : '';
-                const num = org.number;
-                return `<a href="${CONFIG.baseUrl}/organization/?id=${num}" class="metric-dropdown-item">
-                    <span class="metric-dropdown-name">${Utils.escapeHtml(name)}</span>
-                    <span class="metric-dropdown-days">${daysText}</span>
+                const days = org.days !== null ? (org.days > 0 ? `${org.days}d left` : `${Math.abs(org.days)}d overdue`) : '';
+                return `<a href="${CONFIG.baseUrl}/organization/?id=${org.number}" class="metric-dropdown-item">
+                    <span class="metric-dropdown-name">${Utils.escapeHtml(org.title)}</span>
+                    <span class="metric-dropdown-days">${days}</span>
                 </a>`;
             }).join('') + (hasMore ? `<a href="${CONFIG.baseUrl}/organizations/" class="metric-dropdown-item metric-dropdown-more">View all ${orgList.length} →</a>` : '')
             : '<div class="metric-dropdown-empty">No organizations</div>';
 
-            return `
-                <div class="metric-card ${colorClass[type] || ''} metric-card-hoverable">
-                    ${icon ? `<div class="metric-icon">${icon}</div>` : ''}
-                    <div class="metric-value">${value}</div>
-                    <div class="metric-label">${Utils.escapeHtml(label)}</div>
-                    <div class="metric-dropdown">${listHtml}</div>
-                </div>
-            `;
+            return `<div class="metric-card ${colorClass[type] || ''} metric-card-hoverable">
+                ${icon ? `<div class="metric-icon">${icon}</div>` : ''}
+                <div class="metric-value">${value}</div>
+                <div class="metric-label">${Utils.escapeHtml(label)}</div>
+                <div class="metric-dropdown">${listHtml}</div>
+            </div>`;
         }
 
-        // Load recent activity
+        // ─── Revenue card (no hover) ─────────────────────
+        function renderRevenueCard(label, amount, icon, type, subtitle) {
+            const colorClass = { '': '', success: 'metric-success', warning: 'metric-warning', error: 'metric-error' };
+            return `<div class="metric-card ${colorClass[type] || ''}">
+                <div class="metric-icon">${icon}</div>
+                <div class="metric-value" style="font-size:24px;">${formatINR(amount)}</div>
+                <div class="metric-label">${Utils.escapeHtml(label)}</div>
+                ${subtitle ? `<div style="font-size:11px;color:var(--text-muted);margin-top:2px;">${subtitle}</div>` : ''}
+            </div>`;
+        }
+
+        // ─── Load recent activity ────────────────────────
         async function loadRecentActivity() {
             const container = document.getElementById('recent-activity');
             try {
                 const activities = await GitHubAPI.getRecentActivity(10);
-
                 if (activities.length === 0) {
-                    container.innerHTML = '<div class="empty-state" style="padding: 24px;"><p>No recent activity.</p></div>';
+                    container.innerHTML = '<div class="empty-state" style="padding:24px;"><p>No recent activity.</p></div>';
                     return;
                 }
-
-                container.innerHTML = `
-                    <div class="activity-list">
-                        ${activities.map(a => `
-                            <div class="activity-item">
-                                <div class="activity-content">
-                                    <a href="${CONFIG.baseUrl}/organization/?id=${a.issueNumber}" class="activity-org">${Utils.escapeHtml(a.issueTitle)}</a>
-                                    <p class="activity-text">${Utils.escapeHtml(a.comment)}</p>
-                                </div>
-                                <span class="activity-time">${Utils.timeAgo(a.createdAt)}</span>
-                            </div>
-                        `).join('')}
-                    </div>
-                `;
+                container.innerHTML = `<div class="activity-list">${activities.map(a => `
+                    <div class="activity-item">
+                        <div class="activity-content">
+                            <a href="${CONFIG.baseUrl}/organization/?id=${a.issueNumber}" class="activity-org">${Utils.escapeHtml(a.issueTitle)}</a>
+                            <p class="activity-text">${Utils.escapeHtml(a.comment)}</p>
+                        </div>
+                        <span class="activity-time">${Utils.timeAgo(a.createdAt)}</span>
+                    </div>`).join('')}</div>`;
             } catch (error) {
-                container.innerHTML = '<p class="text-muted" style="padding: 16px;">Failed to load activity.</p>';
+                container.innerHTML = '<p style="padding:16px;color:var(--text-muted);">Failed to load activity.</p>';
             }
         }
     </script>
 
     <style>
-        /* Dashboard-specific styles */
-        .chart-container { padding: 8px 0; }
-        .chart-bar-row {
+        /* ─── Dashboard Sections ──────────────────────── */
+        .dash-section-title {
+            font-size: 13px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            color: var(--text-muted);
+            margin-bottom: 12px;
+            margin-top: 8px;
+        }
+
+        .dash-grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .metrics-grid-5 {
+            grid-template-columns: repeat(5, 1fr);
+        }
+
+        /* ─── Collection Progress ─────────────────────── */
+        .collection-progress-track {
+            width: 100%;
+            height: 16px;
+            background: var(--bg);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .collection-progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--success), #34D399);
+            border-radius: 8px;
+            transition: width 0.6s ease;
+            min-width: 4px;
+        }
+
+        /* ─── Revenue Breakdown Bars ──────────────────── */
+        .breakdown-row {
             display: flex;
             align-items: center;
             gap: 12px;
-            padding: 6px 0;
+            padding: 8px 0;
         }
-        .chart-label { width: 80px; font-size: 13px; color: var(--text-secondary); text-align: right; }
-        .chart-bar-track { flex: 1; height: 24px; background: var(--bg); border-radius: 4px; overflow: hidden; }
-        .chart-bar {
+        .breakdown-label {
+            width: 120px;
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text);
+            white-space: nowrap;
+        }
+        .breakdown-bar-track {
+            flex: 1;
+            height: 20px;
+            background: var(--bg);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .breakdown-bar {
             height: 100%;
             background: var(--brand);
             border-radius: 4px;
             min-width: 4px;
             transition: width 0.5s ease;
         }
+        .breakdown-bar-blue { background: var(--info); }
+        .breakdown-value {
+            width: 40px;
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--text);
+            text-align: right;
+        }
+
+        /* ─── Expiry Chart ────────────────────────────── */
+        .chart-container { padding: 4px 0; }
+        .chart-bar-row { display: flex; align-items: center; gap: 12px; padding: 6px 0; }
+        .chart-label { width: 80px; font-size: 13px; color: var(--text-secondary); text-align: right; }
+        .chart-bar-track { flex: 1; height: 22px; background: var(--bg); border-radius: 4px; overflow: hidden; }
+        .chart-bar { height: 100%; background: var(--brand); border-radius: 4px; min-width: 4px; transition: width 0.5s ease; }
         .chart-value { width: 30px; font-size: 13px; font-weight: 700; color: var(--text); }
 
-        .activity-list { }
-        .activity-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            padding: 12px 0;
-            border-bottom: 1px solid var(--border);
+        /* ─── Mini Progress (inline) ──────────────────── */
+        .mini-progress {
+            width: 60px;
+            height: 6px;
+            background: var(--bg);
+            border-radius: 3px;
+            overflow: hidden;
+            display: inline-block;
+            vertical-align: middle;
+            margin-right: 6px;
         }
+        .mini-progress-fill {
+            height: 100%;
+            background: var(--success);
+            border-radius: 3px;
+        }
+
+        /* ─── Activity ────────────────────────────────── */
+        .activity-item { display: flex; justify-content: space-between; align-items: flex-start; padding: 12px 0; border-bottom: 1px solid var(--border); }
         .activity-item:last-child { border-bottom: none; }
         .activity-org { font-weight: 600; font-size: 13px; }
         .activity-text { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
         .activity-time { font-size: 12px; color: var(--text-muted); white-space: nowrap; }
 
-        /* ─── Metric Card Hover Dropdown ──────────────── */
-        .metric-card-hoverable {
-            position: relative;
-            cursor: pointer;
-        }
-
-        .metric-dropdown {
-            display: none;
-            position: absolute;
-            top: 100%;
-            left: 0;
-            right: 0;
-            background: var(--bg-white);
-            border: 1px solid var(--border);
-            border-radius: 0 0 var(--radius-lg) var(--radius-lg);
-            box-shadow: var(--shadow-md);
-            z-index: 30;
-            max-height: 320px;
-            overflow-y: auto;
-            border-top: 2px solid var(--brand);
-        }
-
-        .metric-card-hoverable:hover .metric-dropdown {
-            display: block;
-        }
-
-        .metric-card-hoverable:hover {
-            border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-            box-shadow: var(--shadow-md);
-            z-index: 31;
-        }
-
-        .metric-dropdown-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 10px 14px;
-            font-size: 13px;
-            color: var(--text);
-            text-decoration: none;
-            border-bottom: 1px solid var(--border);
-            transition: background 0.1s;
-        }
-
+        /* ─── Metric Hover Dropdown ────────────────────── */
+        .metric-card-hoverable { position: relative; cursor: pointer; }
+        .metric-dropdown { display: none; position: absolute; top: 100%; left: 0; right: 0; background: var(--bg-white); border: 1px solid var(--border); border-radius: 0 0 var(--radius-lg) var(--radius-lg); box-shadow: var(--shadow-md); z-index: 30; max-height: 320px; overflow-y: auto; border-top: 2px solid var(--brand); }
+        .metric-card-hoverable:hover .metric-dropdown { display: block; }
+        .metric-card-hoverable:hover { border-radius: var(--radius-lg) var(--radius-lg) 0 0; box-shadow: var(--shadow-md); z-index: 31; }
+        .metric-dropdown-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; font-size: 13px; color: var(--text); text-decoration: none; border-bottom: 1px solid var(--border); transition: background 0.1s; }
         .metric-dropdown-item:last-child { border-bottom: none; }
-        .metric-dropdown-item:hover {
-            background: var(--bg);
-            text-decoration: none;
-        }
+        .metric-dropdown-item:hover { background: var(--bg); text-decoration: none; }
+        .metric-dropdown-name { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 60%; }
+        .metric-dropdown-days { font-size: 11px; font-weight: 600; color: var(--text-muted); white-space: nowrap; }
+        .metric-dropdown-more { font-weight: 600; color: var(--brand); justify-content: center; font-size: 12px; }
+        .metric-dropdown-empty { padding: 16px; text-align: center; color: var(--text-muted); font-size: 13px; }
 
-        .metric-dropdown-name {
-            font-weight: 500;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            max-width: 60%;
+        /* ─── Responsive ──────────────────────────────── */
+        @media (max-width: 1024px) {
+            .metrics-grid-5 { grid-template-columns: repeat(3, 1fr); }
+            .dash-grid-2 { grid-template-columns: 1fr; }
         }
-
-        .metric-dropdown-days {
-            font-size: 11px;
-            font-weight: 600;
-            color: var(--text-muted);
-            white-space: nowrap;
-        }
-
-        .metric-dropdown-more {
-            font-weight: 600;
-            color: var(--brand);
-            justify-content: center;
-            font-size: 12px;
-        }
-
-        .metric-dropdown-empty {
-            padding: 16px;
-            text-align: center;
-            color: var(--text-muted);
-            font-size: 13px;
+        @media (max-width: 768px) {
+            .metrics-grid-5 { grid-template-columns: repeat(2, 1fr); }
         }
     </style>
 </body>

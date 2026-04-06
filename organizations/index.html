@@ -48,6 +48,13 @@
                     <option value="Monthly">Monthly</option>
                     <option value="Quarterly">Quarterly</option>
                 </select>
+                <select id="filter-pay-status" onchange="applyFilters()">
+                    <option value="">All Payments</option>
+                    <option value="Fully Paid">Fully Paid</option>
+                    <option value="Partially Paid">Partially Paid</option>
+                    <option value="Overdue">Overdue</option>
+                    <option value="Due">Due</option>
+                </select>
                 <div class="filter-group">
                     <button class="filter-btn" data-days="30" onclick="filterByDays(30, this)">30 days</button>
                     <button class="filter-btn" data-days="60" onclick="filterByDays(60, this)">60 days</button>
@@ -61,17 +68,18 @@
                     <table id="org-table">
                         <thead>
                             <tr>
-                                <th onclick="sortBy('title')">#  Name</th>
+                                <th onclick="sortBy('title')"># Name</th>
                                 <th onclick="sortBy('type')">Type</th>
-                                <th onclick="sortBy('startDate')">Start Date</th>
-                                <th onclick="sortBy('expiryDate')">Expiry Date</th>
-                                <th onclick="sortBy('days')">Days Left</th>
+                                <th onclick="sortBy('expiryDate')">Expiry</th>
+                                <th onclick="sortBy('days')">Days</th>
                                 <th onclick="sortBy('status')">Status</th>
+                                <th onclick="sortBy('contractValue')">Contract</th>
+                                <th onclick="sortBy('payStatus')">Payment</th>
                                 <th onclick="sortBy('manager')">Manager</th>
                             </tr>
                         </thead>
                         <tbody id="org-tbody">
-                            <tr><td colspan="7"><div class="loader"><div class="spinner"></div><p>Loading organizations...</p></div></td></tr>
+                            <tr><td colspan="8"><div class="loader"><div class="spinner"></div><p>Loading organizations...</p></div></td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -113,7 +121,10 @@
                 allIssues = data.issues.map(issue => {
                     const parsed = Utils.parseIssueBody(issue.body);
                     const sub = parsed.subscriptions[0] || {};
+                    const payment = parsed.payment || {};
+                    const payHistory = parsed.paymentHistory || [];
                     const expiryDate = Utils.getEarliestExpiry(parsed.subscriptions);
+                    const paySummary = Utils.calculatePaymentSummary(payment, payHistory);
                     return {
                         ...issue,
                         parsed,
@@ -123,7 +134,11 @@
                         days: expiryDate ? Utils.remainingDays(expiryDate) : 9999,
                         type: sub['Subscription Type'] || '—',
                         manager: parsed.organization['Account Manager'] || '—',
-                        statusKey: expiryDate ? Utils.getStatus(expiryDate) : 'active'
+                        statusKey: expiryDate ? Utils.getStatus(expiryDate) : 'active',
+                        contractValue: paySummary.contractValue,
+                        totalPaid: paySummary.totalPaid,
+                        payStatus: paySummary.status,
+                        payPercentage: paySummary.percentage
                     };
                 });
 
@@ -134,7 +149,7 @@
                 applyFilters();
             } catch (error) {
                 document.getElementById('org-tbody').innerHTML = `
-                    <tr><td colspan="7">
+                    <tr><td colspan="8">
                         <div class="empty-state">
                             <h3>Failed to load</h3>
                             <p>${Utils.escapeHtml(error.message)}</p>
@@ -148,23 +163,23 @@
             const search = document.getElementById('search-input').value.toLowerCase();
             const statusFilter = document.getElementById('filter-status').value;
             const typeFilter = document.getElementById('filter-type').value;
+            const payStatusFilter = document.getElementById('filter-pay-status').value;
 
             filteredIssues = allIssues.filter(issue => {
                 if (search && !issue.title.toLowerCase().includes(search)) return false;
 
                 if (statusFilter) {
+                    const computedLabel = Utils.getStatusLabel(issue.statusKey);
                     const hasLabel = issue.labels.nodes.some(l => l.name === statusFilter);
-                    if (!hasLabel) {
-                        // Fallback: check computed status
-                        const computedLabel = Utils.getStatusLabel(issue.statusKey);
-                        if (computedLabel !== statusFilter) return false;
-                    }
+                    if (!hasLabel && computedLabel !== statusFilter) return false;
                 }
 
                 if (typeFilter) {
                     const hasLabel = issue.labels.nodes.some(l => l.name === typeFilter);
                     if (!hasLabel && issue.type !== typeFilter) return false;
                 }
+
+                if (payStatusFilter && issue.payStatus !== payStatusFilter) return false;
 
                 if (daysFilter !== null) {
                     if (issue.days > daysFilter || issue.days <= 0) return false;
@@ -202,7 +217,7 @@
             document.querySelectorAll('thead th').forEach(th => {
                 th.classList.remove('sort-asc', 'sort-desc');
             });
-            const headers = ['title', 'type', 'startDate', 'expiryDate', 'days', 'status', 'manager'];
+            const headers = ['title', 'type', 'expiryDate', 'days', 'status', 'contractValue', 'payStatus', 'manager'];
             const idx = headers.indexOf(field);
             if (idx >= 0) {
                 const th = document.querySelectorAll('thead th')[idx];
@@ -222,10 +237,11 @@
                 switch (field) {
                     case 'title': valA = a.title.toLowerCase(); valB = b.title.toLowerCase(); break;
                     case 'type': valA = a.type; valB = b.type; break;
-                    case 'startDate': valA = a.startDate; valB = b.startDate; break;
                     case 'expiryDate': valA = a.expiryDate || ''; valB = b.expiryDate || ''; break;
                     case 'days': valA = a.days; valB = b.days; break;
                     case 'status': valA = a.statusKey; valB = b.statusKey; break;
+                    case 'contractValue': valA = a.contractValue; valB = b.contractValue; break;
+                    case 'payStatus': valA = a.payStatus; valB = b.payStatus; break;
                     case 'manager': valA = a.manager; valB = b.manager; break;
                     default: valA = a.days; valB = b.days;
                 }
@@ -240,7 +256,7 @@
 
             if (filteredIssues.length === 0) {
                 tbody.innerHTML = `
-                    <tr><td colspan="7">
+                    <tr><td colspan="8">
                         <div class="empty-state" style="padding:32px;">
                             <div class="empty-state-icon">🏢</div>
                             <h3>No organizations found</h3>
@@ -261,14 +277,17 @@
                     ? `<span style="color:var(--error);font-weight:700;">${issue.days}</span>`
                     : issue.days > 9000 ? '—' : issue.days;
 
+                const contractText = issue.contractValue > 0 ? Utils.formatCurrency(issue.contractValue) : '—';
+
                 return `
                     <tr onclick="window.location.href='../organization/?id=${issue.number}'">
                         <td><strong>#${issue.number}</strong> ${Utils.escapeHtml(issue.title)}</td>
                         <td><span class="badge badge-default">${Utils.escapeHtml(issue.type)}</span></td>
-                        <td>${Utils.formatDate(issue.startDate)}</td>
                         <td>${Utils.formatDate(issue.expiryDate)}</td>
                         <td>${daysText}</td>
                         <td>${statusHtml}</td>
+                        <td>${contractText}</td>
+                        <td>${Utils.paymentStatusBadge(issue.payStatus)}</td>
                         <td>${Utils.escapeHtml(issue.manager)}</td>
                     </tr>
                 `;
