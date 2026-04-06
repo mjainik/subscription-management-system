@@ -54,7 +54,14 @@ const Utils = {
      */
     formatDate(dateStr) {
         if (!dateStr) return '—';
-        const date = new Date(dateStr + 'T00:00:00');
+        // Handle both YYYY-MM-DD and ISO timestamps (2026-04-05T12:00:00Z)
+        let date;
+        if (dateStr.includes('T')) {
+            date = new Date(dateStr);
+        } else {
+            date = new Date(dateStr + 'T00:00:00');
+        }
+        if (isNaN(date.getTime())) return '—';
         const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
         const day = String(date.getDate()).padStart(2, '0');
         return `${day}-${months[date.getMonth()]}-${date.getFullYear()}`;

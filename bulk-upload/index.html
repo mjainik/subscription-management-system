@@ -235,8 +235,16 @@
                         email: row['Contact Email'] || '',
                         phone: row['Phone'] || '',
                         address: '',
-                        industry: row['Industry'] || '',
-                        accountManager: row['Account Manager'] || ''
+                        orgType: row['Organization Type'] || '',
+                        accountManager: row['Account Manager'] || '',
+                        contactPerson: row['Contact Person'] || '',
+                        designation: row['Designation'] || '',
+                        secondaryContact: '',
+                        secondaryEmail: '',
+                        secondaryPhone: '',
+                        gstId: '',
+                        dealSource: row['Deal Source'] || '',
+                        licenses: ''
                     };
                     const subData = {
                         type: row['Subscription Type'] || 'Annual',

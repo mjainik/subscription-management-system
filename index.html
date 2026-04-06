@@ -237,7 +237,7 @@
                     <div class="card" style="margin-bottom:24px;">
                         <div class="card-header">
                             <h3 class="card-title">Collection Progress</h3>
-                            <span style="font-size:13px;color:var(--text-secondary);">${formatINR(totalCollected)} of ${formatINR(totalContractValue)}</span>
+                            <span style="font-size:13px;color:var(--text-secondary);">${formatAmount(totalCollected)} of ${formatAmount(totalContractValue)}</span>
                         </div>
                         <div class="collection-progress-track">
                             <div class="collection-progress-fill" style="width:${collectionPct}%"></div>
@@ -306,7 +306,7 @@
                                             <tr>
                                                 <td><strong>${Utils.escapeHtml(mgr)}</strong></td>
                                                 <td>${data.orgs}</td>
-                                                <td>${formatINR(data.revenue)}</td>
+                                                <td>${formatAmount(data.revenue)}</td>
                                                 <td>${data.renewalsDue > 0 ? `<span class="badge badge-warning">${data.renewalsDue}</span>` : '0'}</td>
                                             </tr>
                                         `).join('')}
@@ -330,7 +330,7 @@
                                     <td><strong>${Utils.escapeHtml(r.title)}</strong></td>
                                     <td>${Utils.formatDate(r.expiryDate)}</td>
                                     <td>${r.days <= 0 ? `<span class="badge badge-error">${r.days}d</span>` : `<span class="badge badge-warning">${r.days}d</span>`}</td>
-                                    <td>${formatINR(r.contractValue)}</td>
+                                    <td>${formatAmount(r.contractValue)}</td>
                                     <td>${r.payPercentage}%</td>
                                     <td><a href="${CONFIG.baseUrl}/organization/?id=${r.number}" class="btn btn-text btn-sm">View</a></td>
                                 </tr>`).join('')}</tbody>
@@ -349,9 +349,9 @@
                             <tbody>${overduePayments.map(r => `
                                 <tr onclick="window.location.href='${CONFIG.baseUrl}/organization/?id=${r.number}'">
                                     <td><strong>${Utils.escapeHtml(r.title)}</strong></td>
-                                    <td>${formatINR(r.contractValue)}</td>
-                                    <td>${formatINR(r.totalPaid)}</td>
-                                    <td style="color:var(--error);font-weight:700;">${formatINR(r.remaining)}</td>
+                                    <td>${formatAmount(r.contractValue)}</td>
+                                    <td>${formatAmount(r.totalPaid)}</td>
+                                    <td style="color:var(--error);font-weight:700;">${formatAmount(r.remaining)}</td>
                                     <td><span class="badge badge-error">Overdue</span></td>
                                     <td><a href="${CONFIG.baseUrl}/organization/?id=${r.number}" class="btn btn-text btn-sm">View</a></td>
                                 </tr>`).join('')}</tbody>
@@ -371,8 +371,8 @@
                                 return `
                                 <tr onclick="window.location.href='${CONFIG.baseUrl}/organization/?id=${r.number}'">
                                     <td><strong>${Utils.escapeHtml(r.title)}</strong></td>
-                                    <td>${formatINR(r.contractValue)}</td>
-                                    <td>${formatINR(r.totalPaid)}</td>
+                                    <td>${formatAmount(r.contractValue)}</td>
+                                    <td>${formatAmount(r.totalPaid)}</td>
                                     <td>
                                         <div class="mini-progress"><div class="mini-progress-fill" style="width:${r.payPercentage}%"></div></div>
                                         <span style="font-size:11px;color:var(--text-muted);">${r.payPercentage}%</span>
@@ -395,13 +395,14 @@
             loadRecentActivity();
         }
 
-        // ─── Helper: format currency (INR-friendly) ──────
-        function formatINR(amount) {
+        // ─── Helper: format currency (short form) ──────
+        function formatAmount(amount) {
             if (!amount && amount !== 0) return '—';
-            if (amount >= 10000000) return '₹' + (amount / 10000000).toFixed(1) + 'Cr';
-            if (amount >= 100000) return '₹' + (amount / 100000).toFixed(1) + 'L';
-            if (amount >= 1000) return '₹' + (amount / 1000).toFixed(1) + 'K';
-            return '₹' + amount.toLocaleString();
+            const symbol = '$';
+            if (amount >= 10000000) return symbol + (amount / 10000000).toFixed(1) + 'Cr';
+            if (amount >= 100000) return symbol + (amount / 100000).toFixed(1) + 'L';
+            if (amount >= 1000) return symbol + (amount / 1000).toFixed(1) + 'K';
+            return symbol + amount.toLocaleString();
         }
 
         // ─── Metric card with hover list ─────────────────
@@ -432,7 +433,7 @@
             const colorClass = { '': '', success: 'metric-success', warning: 'metric-warning', error: 'metric-error' };
             return `<div class="metric-card ${colorClass[type] || ''}">
                 <div class="metric-icon">${icon}</div>
-                <div class="metric-value" style="font-size:24px;">${formatINR(amount)}</div>
+                <div class="metric-value" style="font-size:24px;">${formatAmount(amount)}</div>
                 <div class="metric-label">${Utils.escapeHtml(label)}</div>
                 ${subtitle ? `<div style="font-size:11px;color:var(--text-muted);margin-top:2px;">${subtitle}</div>` : ''}
             </div>`;

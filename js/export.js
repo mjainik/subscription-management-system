@@ -134,6 +134,12 @@ const Export = {
         const parsed = Utils.parseIssueBody(orgData.body);
         const org = parsed.organization;
         const alerts = parsed.alerts;
+        const payment = parsed.payment || {};
+        const payHistory = parsed.paymentHistory || [];
+        const paySummary = Utils.calculatePaymentSummary(payment, payHistory);
+
+        const tdStyle = 'padding: 8px; border: 1px solid #E5E7EB;';
+        const thStyle = `${tdStyle} font-weight: bold; width: 200px;`;
 
         let html = `
             <div style="border-bottom: 3px solid #E8450A; padding-bottom: 10px; margin-bottom: 20px;">
@@ -143,10 +149,14 @@ const Export = {
 
             <h2>Organization Details</h2>
             <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
-                <tr><td style="padding: 8px; border: 1px solid #E5E7EB; font-weight: bold; width: 200px;">Contact Email</td><td style="padding: 8px; border: 1px solid #E5E7EB;">${Utils.escapeHtml(org['Contact Email'] || '—')}</td></tr>
-                <tr><td style="padding: 8px; border: 1px solid #E5E7EB; font-weight: bold;">Phone</td><td style="padding: 8px; border: 1px solid #E5E7EB;">${Utils.escapeHtml(org['Phone'] || '—')}</td></tr>
-                <tr><td style="padding: 8px; border: 1px solid #E5E7EB; font-weight: bold;">Industry</td><td style="padding: 8px; border: 1px solid #E5E7EB;">${Utils.escapeHtml(org['Organization Type'] || '—')}</td></tr>
-                <tr><td style="padding: 8px; border: 1px solid #E5E7EB; font-weight: bold;">Account Manager</td><td style="padding: 8px; border: 1px solid #E5E7EB;">${Utils.escapeHtml(org['Account Manager'] || '—')}</td></tr>
+                <tr><td style="${thStyle}">Contact Person</td><td style="${tdStyle}">${Utils.escapeHtml(org['Contact Person'] || '—')}</td></tr>
+                <tr><td style="${thStyle}">Designation</td><td style="${tdStyle}">${Utils.escapeHtml(org['Designation'] || '—')}</td></tr>
+                <tr><td style="${thStyle}">Contact Email</td><td style="${tdStyle}">${Utils.escapeHtml(org['Contact Email'] || '—')}</td></tr>
+                <tr><td style="${thStyle}">Phone</td><td style="${tdStyle}">${Utils.escapeHtml(org['Phone'] || '—')}</td></tr>
+                <tr><td style="${thStyle}">Organization Type</td><td style="${tdStyle}">${Utils.escapeHtml(org['Organization Type'] || '—')}</td></tr>
+                <tr><td style="${thStyle}">Account Manager</td><td style="${tdStyle}">${Utils.escapeHtml(org['Account Manager'] || '—')}</td></tr>
+                <tr><td style="${thStyle}">GST/Tax ID</td><td style="${tdStyle}">${Utils.escapeHtml(org['GST/Tax ID'] || '—')}</td></tr>
+                <tr><td style="${thStyle}">Deal Source</td><td style="${tdStyle}">${Utils.escapeHtml(org['Deal Source'] || '—')}</td></tr>
             </table>
         `;
 
@@ -172,12 +182,47 @@ const Export = {
             `;
         }
 
+        // Payment Summary
+        html += `
+            <h2>Payment Summary</h2>
+            <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+                <tr><td style="${thStyle}">Contract Value</td><td style="${tdStyle}">${Utils.formatCurrency(paySummary.contractValue)}</td></tr>
+                <tr><td style="${thStyle}">Total Paid</td><td style="${tdStyle} color: #16A34A; font-weight: bold;">${Utils.formatCurrency(paySummary.totalPaid)}</td></tr>
+                <tr><td style="${thStyle}">Remaining</td><td style="${tdStyle} color: ${paySummary.remaining > 0 ? '#F59E0B' : '#16A34A'}; font-weight: bold;">${Utils.formatCurrency(paySummary.remaining)}</td></tr>
+                <tr><td style="${thStyle}">Payment Status</td><td style="${tdStyle}">${paySummary.status}</td></tr>
+                <tr><td style="${thStyle}">Collection</td><td style="${tdStyle}">${paySummary.percentage}%</td></tr>
+            </table>
+        `;
+
+        // Payment History
+        if (payHistory.length > 0) {
+            html += `<h2>Payment History</h2>
+            <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+                <tr style="background: #F8F9FB;">
+                    <th style="${tdStyle} text-align: left;">#</th>
+                    <th style="${tdStyle} text-align: left;">Date</th>
+                    <th style="${tdStyle} text-align: left;">Amount</th>
+                    <th style="${tdStyle} text-align: left;">Method</th>
+                    <th style="${tdStyle} text-align: left;">Receipt</th>
+                    <th style="${tdStyle} text-align: left;">Status</th>
+                </tr>
+                ${payHistory.map(p => `<tr>
+                    <td style="${tdStyle}">${Utils.escapeHtml(p.number)}</td>
+                    <td style="${tdStyle}">${Utils.formatDate(p.date)}</td>
+                    <td style="${tdStyle}">${Utils.escapeHtml(p.amount)}</td>
+                    <td style="${tdStyle}">${Utils.escapeHtml(p.method)}</td>
+                    <td style="${tdStyle}">${Utils.escapeHtml(p.receipt)}</td>
+                    <td style="${tdStyle}">${Utils.escapeHtml(p.status)}</td>
+                </tr>`).join('')}
+            </table>`;
+        }
+
         html += `
             <h2>Alert Settings</h2>
             <table style="width: 100%; border-collapse: collapse;">
-                <tr><td style="padding: 8px; border: 1px solid #E5E7EB; font-weight: bold; width: 200px;">Alerts Enabled</td><td style="padding: 8px; border: 1px solid #E5E7EB;">${Utils.escapeHtml(alerts['Alerts Enabled'] || 'Yes')}</td></tr>
-                <tr><td style="padding: 8px; border: 1px solid #E5E7EB; font-weight: bold;">Alert Days Before</td><td style="padding: 8px; border: 1px solid #E5E7EB;">${Utils.escapeHtml(alerts['Alert Days Before'] || '60')}</td></tr>
-                <tr><td style="padding: 8px; border: 1px solid #E5E7EB; font-weight: bold;">Recipients</td><td style="padding: 8px; border: 1px solid #E5E7EB;">${Utils.escapeHtml(alerts['Alert Recipients'] || '—')}</td></tr>
+                <tr><td style="${thStyle}">Alerts Enabled</td><td style="${tdStyle}">${Utils.escapeHtml(alerts['Alerts Enabled'] || 'Yes')}</td></tr>
+                <tr><td style="${thStyle}">Alert Days Before</td><td style="${tdStyle}">${Utils.escapeHtml(alerts['Alert Days Before'] || '60')}</td></tr>
+                <tr><td style="${thStyle}">Recipients</td><td style="${tdStyle}">${Utils.escapeHtml(alerts['Alert Recipients'] || '—')}</td></tr>
             </table>
         `;
 

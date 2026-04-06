@@ -92,7 +92,6 @@ const GitHubAPI = {
             labelFilter = `labels: [${labels.map(l => `"${l}"`).join(', ')}],`;
         }
 
-        const searchFilter = search ? `filterBy: {labels: [], states: OPEN},` : '';
         const afterCursor = after ? `after: "${after}",` : '';
 
         const query = `
