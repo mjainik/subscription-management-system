@@ -255,6 +255,13 @@
                         </div>
                         <div class="payment-progress-text">${paySummary.percentage}% Collected</div>
                         ` : ''}
+                        ${(() => {
+                            let subTotal = 0;
+                            if (plat) subTotal += parseFloat((plat['Amount'] || '0').replace(/[^0-9.]/g, '')) || 0;
+                            (projectBatches || []).forEach(b => subTotal += parseFloat((b['Amount'] || '0').replace(/[^0-9.]/g, '')) || 0);
+                            (userBatches || []).forEach(b => subTotal += parseFloat((b['Amount'] || '0').replace(/[^0-9.]/g, '')) || 0);
+                            return subTotal > 0 ? `<div style="margin-top:8px;font-size:12px;color:var(--text-muted);text-align:center;">Subscription subtotal: ${subTotal.toLocaleString()} (before tax/discounts)</div>` : '';
+                        })()}
                     </div>
 
                     <!-- Payment History -->
@@ -1116,7 +1123,15 @@
                 <div class="card" style="margin-bottom:16px;">
                     <h3 class="edit-section-title">Payment Details</h3>
                     <div class="form-row">
-                        <div class="form-group"><label>Contract Value</label><input type="text" id="edit-contract-value" value="${Utils.escapeHtml(payment['Contract Value'] || '')}" /></div>
+                        <div class="form-group"><label>Contract Value</label><input type="text" id="edit-contract-value" value="${Utils.escapeHtml(payment['Contract Value'] || '')}" />
+                            <small style="color:var(--text-muted);">${(() => {
+                                let st = 0;
+                                if (plat) st += parseFloat((plat['Amount'] || '0').replace(/[^0-9.]/g, '')) || 0;
+                                (currentParsed.projectBatches || []).forEach(b => st += parseFloat((b['Amount'] || '0').replace(/[^0-9.]/g, '')) || 0);
+                                (currentParsed.userBatches || []).forEach(b => st += parseFloat((b['Amount'] || '0').replace(/[^0-9.]/g, '')) || 0);
+                                return st > 0 ? 'Subscription subtotal: ' + st.toLocaleString() + ' (before tax/discounts)' : '';
+                            })()}</small>
+                        </div>
                         <div class="form-group"><label>Payment Schedule</label>
                             <select id="edit-pay-schedule">
                                 <option value="One-time" ${(payment['Payment Schedule'] || '') === 'One-time' ? 'selected' : ''}>One-time</option>
