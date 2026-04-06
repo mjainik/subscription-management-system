@@ -396,12 +396,7 @@
 
         // ─── Helper: format currency (short form) ──────
         function formatAmount(amount) {
-            if (!amount && amount !== 0) return '—';
-            const symbol = '$';
-            if (amount >= 10000000) return symbol + (amount / 10000000).toFixed(1) + 'Cr';
-            if (amount >= 100000) return symbol + (amount / 100000).toFixed(1) + 'L';
-            if (amount >= 1000) return symbol + (amount / 1000).toFixed(1) + 'K';
-            return symbol + amount.toLocaleString();
+            return Utils.formatCurrencyShort(amount);
         }
 
         // ─── Metric card with hover list ─────────────────

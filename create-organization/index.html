@@ -710,19 +710,19 @@
                     expiryDate: document.getElementById('sub-expiry').value,
                     billingDate: document.getElementById('sub-billing').value || document.getElementById('sub-start').value,
                     paymentCycle: document.getElementById('sub-cycle').value || document.getElementById('sub-type').value,
-                    amount: document.getElementById('sub-amount').value ? '$' + document.getElementById('sub-amount').value : '',
+                    amount: document.getElementById('sub-amount').value ? Utils.getCurrencySymbol(document.getElementById('sub-currency').value) + document.getElementById('sub-amount').value : '',
                     currency: document.getElementById('sub-currency').value,
                     autoRenew: 'No'
                 };
 
                 const contractVal = document.getElementById('pay-contract').value;
                 const paymentData = {
-                    contractValue: contractVal ? '$' + contractVal : '',
+                    contractValue: contractVal ? Utils.getCurrencySymbol(document.getElementById('sub-currency').value) + contractVal : '',
                     schedule: document.getElementById('pay-schedule').value,
                     installments: document.getElementById('pay-installments').value,
                     firstPaymentDate: document.getElementById('pay-first-date').value,
-                    totalPaid: '$0',
-                    remaining: contractVal ? '$' + contractVal : '',
+                    totalPaid: Utils.getCurrencySymbol(document.getElementById('sub-currency').value) + '0',
+                    remaining: contractVal ? Utils.getCurrencySymbol(document.getElementById('sub-currency').value) + contractVal : '',
                     status: 'Due'
                 };
 

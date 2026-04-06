@@ -253,17 +253,17 @@
                         expiryDate: row['Expiry Date'] || '',
                         billingDate: row['Billing Date'] || row['Start Date'] || '',
                         paymentCycle: row['Payment Cycle'] || row['Subscription Type'] || '',
-                        amount: row['Amount'] ? '$' + row['Amount'] : '',
-                        currency: 'USD',
+                        amount: row['Amount'] ? Utils.getCurrencySymbol(row['Currency']) + row['Amount'] : '',
+                        currency: row['Currency'] || 'USD',
                         autoRenew: 'No'
                     };
                     const alertData = { enabled: 'Yes', daysBefore: '60', recipients: '' };
 
                     const paymentData = {
-                        contractValue: row['Contract Value'] ? '$' + row['Contract Value'] : '',
+                        contractValue: row['Contract Value'] ? Utils.getCurrencySymbol(row['Currency']) + row['Contract Value'] : '',
                         schedule: 'One-time',
-                        totalPaid: '$0',
-                        remaining: row['Contract Value'] ? '$' + row['Contract Value'] : '',
+                        totalPaid: Utils.getCurrencySymbol(row['Currency']) + '0',
+                        remaining: row['Contract Value'] ? Utils.getCurrencySymbol(row['Currency']) + row['Contract Value'] : '',
                         status: 'Due'
                     };
                     const body = Utils.buildIssueBody(orgData, [subData], paymentData, alertData, '');

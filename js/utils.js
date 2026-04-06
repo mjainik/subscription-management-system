@@ -90,16 +90,36 @@ const Utils = {
     },
 
     /**
-     * Format currency
+     * Get currency symbol from code
+     */
+    getCurrencySymbol(code) {
+        const symbols = { USD: '$', EUR: '€', GBP: '£', INR: '₹', AUD: 'A$', CAD: 'C$', JPY: '¥', CNY: '¥', AED: 'د.إ', SAR: '﷼', SGD: 'S$', BRL: 'R$' };
+        return symbols[code] || code || '$';
+    },
+
+    /**
+     * Format currency with proper symbol
      */
     formatCurrency(amount, currency = 'USD') {
         if (!amount && amount !== 0) return '—';
-        const num = parseFloat(amount);
+        const num = typeof amount === 'string' ? parseFloat(amount.replace(/[^0-9.-]/g, '')) : amount;
         if (isNaN(num)) return '—';
-        return new Intl.NumberFormat('en-US', {
-            style: 'currency',
-            currency: currency
-        }).format(num);
+        const symbol = this.getCurrencySymbol(currency);
+        return symbol + num.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+    },
+
+    /**
+     * Format currency short form (K, L, Cr) with proper symbol
+     */
+    formatCurrencyShort(amount, currency = 'USD') {
+        if (!amount && amount !== 0) return '—';
+        const num = typeof amount === 'string' ? parseFloat(amount.replace(/[^0-9.-]/g, '')) : amount;
+        if (isNaN(num)) return '—';
+        const symbol = this.getCurrencySymbol(currency);
+        if (num >= 10000000) return symbol + (num / 10000000).toFixed(1) + 'Cr';
+        if (num >= 100000) return symbol + (num / 100000).toFixed(1) + 'L';
+        if (num >= 1000) return symbol + (num / 1000).toFixed(1) + 'K';
+        return symbol + num.toLocaleString();
     },
 
     /**
@@ -311,7 +331,8 @@ const Utils = {
                 const installmentAmount = i === numInstallments - 1
                     ? contractVal - (perInstallment * (numInstallments - 1))
                     : perInstallment;
-                body += `| ${i + 1} | ${dueDate} | $${installmentAmount.toLocaleString()} | — | — | Due |\n`;
+                const currSym = this.getCurrencySymbol(subscriptions[0]?.currency);
+                body += `| ${i + 1} | ${dueDate} | ${currSym}${installmentAmount.toLocaleString()} | — | — | Due |\n`;
             }
         }
 

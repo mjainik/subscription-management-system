@@ -472,7 +472,8 @@
                 for (const p of payHistory) {
                     if (p.status === 'Due') {
                         p.date = date;
-                        p.amount = '$' + paidAmount.toLocaleString();
+                        const currSymbol = Utils.getCurrencySymbol((subs[0] || {})['Currency']);
+                        p.amount = currSymbol + paidAmount.toLocaleString();
                         p.method = method;
                         p.receipt = receipt;
                         p.status = 'Paid';
@@ -483,10 +484,11 @@
 
                 // If no "Due" installment found (one-time or all paid), add a new row
                 if (!updatedExisting) {
+                    const currSymbol2 = Utils.getCurrencySymbol((subs[0] || {})['Currency']);
                     payHistory.push({
                         number: String(payHistory.length + 1),
                         date: date,
-                        amount: '$' + paidAmount.toLocaleString(),
+                        amount: currSymbol2 + paidAmount.toLocaleString(),
                         method: method,
                         receipt: receipt,
                         status: 'Paid'
@@ -543,8 +545,8 @@
                 const paymentData = {
                     contractValue: payment['Contract Value'] || '',
                     schedule: payment['Payment Schedule'] || 'One-time',
-                    totalPaid: '$' + totalPaid.toFixed(2).replace(/\.00$/, ''),
-                    remaining: '$' + remaining.toFixed(2).replace(/\.00$/, ''),
+                    totalPaid: Utils.getCurrencySymbol((subs[0] || {})['Currency']) + totalPaid.toFixed(2).replace(/\.00$/, ''),
+                    remaining: Utils.getCurrencySymbol((subs[0] || {})['Currency']) + remaining.toFixed(2).replace(/\.00$/, ''),
                     status: payStatus
                 };
 
@@ -576,11 +578,12 @@
 
                 // Add audit comment
                 const userName = Auth.getUserName();
-                const commentBody = `💰 **Payment recorded by ${userName}** — ${Utils.formatDate(new Date().toISOString())}\n\n| Field | Value |\n|-------|-------|\n| Date | ${Utils.formatDate(date)} |\n| Amount | $${paidAmount.toLocaleString()} |\n| Method | ${method} |\n| Receipt | ${receipt} |\n\n**Updated Totals:** Paid: $${totalPaid.toLocaleString()} | Remaining: $${remaining.toLocaleString()} | Status: ${payStatus}`;
+                const cs = Utils.getCurrencySymbol((subs[0] || {})['Currency']);
+                const commentBody = `💰 **Payment recorded by ${userName}** — ${Utils.formatDate(new Date().toISOString())}\n\n| Field | Value |\n|-------|-------|\n| Date | ${Utils.formatDate(date)} |\n| Amount | ${cs}${paidAmount.toLocaleString()} |\n| Method | ${method} |\n| Receipt | ${receipt} |\n\n**Updated Totals:** Paid: ${cs}${totalPaid.toLocaleString()} | Remaining: ${cs}${remaining.toLocaleString()} | Status: ${payStatus}`;
 
                 await GitHubAPI.addComment(currentIssue.number, commentBody);
 
-                Toast.show(`Payment of $${paidAmount.toLocaleString()} recorded! Remaining: $${remaining.toLocaleString()}`, 'success');
+                Toast.show(`Payment of ${cs}${paidAmount.toLocaleString()} recorded! Remaining: ${cs}${remaining.toLocaleString()}`, 'success');
                 hideAddPayment();
                 await loadOrganization();
             } catch (error) {
@@ -794,7 +797,7 @@
             const paymentData = {
                 contractValue: document.getElementById('edit-contract-value').value,
                 schedule: document.getElementById('edit-pay-schedule').value,
-                totalPaid: currentParsed.payment?.['Total Paid'] || '$0',
+                totalPaid: currentParsed.payment?.['Total Paid'] || Utils.getCurrencySymbol((currentParsed.subscriptions[0] || {})['Currency']) + '0',
                 remaining: currentParsed.payment?.['Remaining'] || '',
                 status: currentParsed.payment?.['Payment Status'] || 'Due'
             };
@@ -919,7 +922,7 @@
                         </div>
                     </div>
                     <div class="form-row">
-                        <div class="form-group"><label>Amount</label><input type="text" id="new-sub-amount" placeholder="e.g., $5000" /></div>
+                        <div class="form-group"><label>Amount</label><input type="text" id="new-sub-amount" placeholder="e.g., 5000" /></div>
                         <div class="form-group"><label>Currency</label>
                             <select id="new-sub-currency"><option value="USD">USD</option><option value="EUR">EUR</option><option value="INR">INR</option></select>
                         </div>
@@ -979,7 +982,7 @@
                     dealSource: org['Deal Source'] || '', licenses: org['Number of Licenses'] || ''
                 };
                 const payment = currentParsed.payment || {};
-                const paymentData = { contractValue: payment['Contract Value'] || '', schedule: payment['Payment Schedule'] || 'One-time', totalPaid: payment['Total Paid'] || '$0', remaining: payment['Remaining'] || '', status: payment['Payment Status'] || 'Due' };
+                const paymentData = { contractValue: payment['Contract Value'] || '', schedule: payment['Payment Schedule'] || 'One-time', totalPaid: payment['Total Paid'] || Utils.getCurrencySymbol((currentParsed.subscriptions[0] || {})['Currency']) + '0', remaining: payment['Remaining'] || '', status: payment['Payment Status'] || 'Due' };
                 const alertData = { enabled: currentParsed.alerts['Alerts Enabled'] || 'Yes', daysBefore: currentParsed.alerts['Alert Days Before'] || '60', recipients: currentParsed.alerts['Alert Recipients'] || '' };
 
                 const newBody = Utils.buildIssueBody(orgData, allSubs, paymentData, alertData, currentParsed.notes);
