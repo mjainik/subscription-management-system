@@ -295,13 +295,7 @@
                             <div class="form-row">
                                 <div class="form-group">
                                     <label for="pay-installments">Number of Installments</label>
-                                    <select id="pay-installments">
-                                        <option value="2">2 Installments</option>
-                                        <option value="3">3 Installments</option>
-                                        <option value="4" selected>4 Installments</option>
-                                        <option value="6">6 Installments</option>
-                                        <option value="12">12 Installments</option>
-                                    </select>
+                                    <input type="number" id="pay-installments" placeholder="e.g., 4" min="2" max="60" value="4" />
                                 </div>
                                 <div class="form-group">
                                     <label for="pay-first-date">First Payment Date</label>
