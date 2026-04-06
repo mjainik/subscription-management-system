@@ -10,9 +10,12 @@ const Export = {
     downloadCSV(data, filename = 'export.csv') {
         const headers = [
             'Org Name', 'Contact Email', 'Phone', 'Organization Type',
+            'Contact Person', 'Designation', 'Account Manager',
             'Subscription Type', 'Plan Name', 'Start Date', 'Expiry Date',
             'Billing Date', 'Payment Cycle', 'Amount', 'Currency',
-            'Remaining Days', 'Status', 'Account Manager',
+            'Contract Value', 'Total Paid', 'Remaining', 'Payment Status',
+            'Remaining Days', 'Status',
+            'Deal Source', 'GST/Tax ID', 'Licenses',
             'Alert Enabled', 'Alert Days'
         ];
 
@@ -22,17 +25,22 @@ const Export = {
             const parsed = Utils.parseIssueBody(item.body);
             const org = parsed.organization;
             const sub = parsed.subscriptions[0] || {};
+            const payment = parsed.payment || {};
             const alerts = parsed.alerts;
             const expiryDate = sub['Expiry Date'] || '';
             const days = expiryDate ? Utils.remainingDays(expiryDate) : '';
             const statusKey = expiryDate ? Utils.getStatus(expiryDate) : '';
             const statusLabel = statusKey ? CONFIG.labels.status[statusKey] : '';
+            const paySummary = Utils.calculatePaymentSummary(payment, parsed.paymentHistory || []);
 
             const row = [
                 this.csvEscape(item.title),
                 this.csvEscape(org['Contact Email'] || ''),
                 this.csvEscape(org['Phone'] || ''),
                 this.csvEscape(org['Organization Type'] || ''),
+                this.csvEscape(org['Contact Person'] || ''),
+                this.csvEscape(org['Designation'] || ''),
+                this.csvEscape(org['Account Manager'] || ''),
                 this.csvEscape(sub['Subscription Type'] || ''),
                 this.csvEscape(sub['Plan Name'] || ''),
                 this.csvEscape(sub['Start Date'] || ''),
@@ -41,9 +49,15 @@ const Export = {
                 this.csvEscape(sub['Payment Cycle'] || ''),
                 this.csvEscape(sub['Amount'] || ''),
                 this.csvEscape(sub['Currency'] || 'USD'),
+                this.csvEscape(payment['Contract Value'] || ''),
+                paySummary.totalPaid,
+                paySummary.remaining,
+                this.csvEscape(paySummary.status),
                 days,
                 this.csvEscape(statusLabel),
-                this.csvEscape(org['Account Manager'] || ''),
+                this.csvEscape(org['Deal Source'] || ''),
+                this.csvEscape(org['GST/Tax ID'] || ''),
+                this.csvEscape(org['Number of Licenses'] || ''),
                 this.csvEscape(alerts['Alerts Enabled'] || 'Yes'),
                 this.csvEscape(alerts['Alert Days Before'] || '60')
             ];

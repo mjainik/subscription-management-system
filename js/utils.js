@@ -119,6 +119,8 @@ const Utils = {
         const data = {
             organization: {},
             subscriptions: [],
+            payment: {},
+            paymentHistory: [],
             alerts: {},
             notes: ''
         };
@@ -134,11 +136,13 @@ const Utils = {
             if (title.includes('organization details')) {
                 data.organization = this.parseMarkdownTable(lines.slice(1));
             } else if (title.includes('subscription') && !title.includes('details')) {
-                // Multiple subscriptions: "Subscription 1", "Subscription 2", etc.
                 data.subscriptions.push(this.parseMarkdownTable(lines.slice(1)));
             } else if (title === 'subscription details') {
-                // Single subscription (legacy format)
                 data.subscriptions.push(this.parseMarkdownTable(lines.slice(1)));
+            } else if (title.includes('payment details')) {
+                data.payment = this.parseMarkdownTable(lines.slice(1));
+            } else if (title.includes('payment history')) {
+                data.paymentHistory = this.parsePaymentHistoryTable(lines.slice(1));
             } else if (title.includes('alert settings')) {
                 data.alerts = this.parseMarkdownTable(lines.slice(1));
             } else if (title.includes('notes')) {
@@ -166,9 +170,81 @@ const Utils = {
     },
 
     /**
+     * Parse payment history table (multi-column)
+     */
+    parsePaymentHistoryTable(lines) {
+        const payments = [];
+        for (const line of lines) {
+            const match = line.match(/\|\s*(\d+)\s*\|\s*(.+?)\s*\|\s*(.+?)\s*\|\s*(.+?)\s*\|\s*(.+?)\s*\|\s*(.+?)\s*\|/);
+            if (match) {
+                payments.push({
+                    number: match[1].trim(),
+                    date: match[2].trim(),
+                    amount: match[3].trim(),
+                    method: match[4].trim(),
+                    receipt: match[5].trim(),
+                    status: match[6].trim()
+                });
+            }
+        }
+        return payments;
+    },
+
+    /**
+     * Calculate payment summary from payment data
+     */
+    calculatePaymentSummary(payment, paymentHistory) {
+        const contractValue = parseFloat((payment['Contract Value'] || '0').replace(/[^0-9.]/g, '')) || 0;
+        let totalPaid = 0;
+
+        if (paymentHistory && paymentHistory.length > 0) {
+            for (const p of paymentHistory) {
+                if (p.status === 'Paid') {
+                    totalPaid += parseFloat((p.amount || '0').replace(/[^0-9.]/g, '')) || 0;
+                }
+            }
+        } else {
+            totalPaid = parseFloat((payment['Total Paid'] || '0').replace(/[^0-9.]/g, '')) || 0;
+        }
+
+        const remaining = contractValue - totalPaid;
+        const percentage = contractValue > 0 ? Math.round((totalPaid / contractValue) * 100) : 0;
+
+        let status = 'Due';
+        if (contractValue > 0 && totalPaid >= contractValue) status = 'Fully Paid';
+        else if (totalPaid > 0) status = 'Partially Paid';
+
+        // Check for overdue
+        if (paymentHistory) {
+            const today = new Date();
+            for (const p of paymentHistory) {
+                if (p.status === 'Due' && p.date && new Date(p.date) < today) {
+                    status = 'Overdue';
+                    break;
+                }
+            }
+        }
+
+        return { contractValue, totalPaid, remaining, percentage, status };
+    },
+
+    /**
+     * Get payment status badge HTML
+     */
+    paymentStatusBadge(status) {
+        const map = {
+            'Fully Paid': '<span class="badge badge-success">Fully Paid</span>',
+            'Partially Paid': '<span class="badge badge-warning">Partially Paid</span>',
+            'Overdue': '<span class="badge badge-error">Overdue</span>',
+            'Due': '<span class="badge badge-info">Due</span>'
+        };
+        return map[status] || '<span class="badge badge-default">—</span>';
+    },
+
+    /**
      * Build structured markdown body from form data
      */
-    buildIssueBody(orgData, subscriptions, alertData, notes) {
+    buildIssueBody(orgData, subscriptions, paymentData, alertData, notes) {
         let body = `## Organization Details\n| Field | Value |\n|-------|-------|\n`;
         body += `| Organization Name | ${orgData.name || ''} |\n`;
         body += `| Contact Email | ${orgData.email || ''} |\n`;
@@ -176,6 +252,14 @@ const Utils = {
         body += `| Address | ${orgData.address || ''} |\n`;
         body += `| Organization Type | ${orgData.orgType || ''} |\n`;
         body += `| Account Manager | ${orgData.accountManager || ''} |\n`;
+        body += `| Contact Person | ${orgData.contactPerson || ''} |\n`;
+        body += `| Designation | ${orgData.designation || ''} |\n`;
+        body += `| Secondary Contact | ${orgData.secondaryContact || ''} |\n`;
+        body += `| Secondary Email | ${orgData.secondaryEmail || ''} |\n`;
+        body += `| Secondary Phone | ${orgData.secondaryPhone || ''} |\n`;
+        body += `| GST/Tax ID | ${orgData.gstId || ''} |\n`;
+        body += `| Deal Source | ${orgData.dealSource || ''} |\n`;
+        body += `| Number of Licenses | ${orgData.licenses || ''} |\n`;
 
         subscriptions.forEach((sub, index) => {
             const heading = subscriptions.length > 1 ? `Subscription ${index + 1}` : 'Subscription Details';
@@ -190,6 +274,36 @@ const Utils = {
             body += `| Currency | ${sub.currency || 'USD'} |\n`;
             body += `| Auto Renew | ${sub.autoRenew || 'No'} |\n`;
         });
+
+        // Payment Details
+        body += `\n## Payment Details\n| Field | Value |\n|-------|-------|\n`;
+        body += `| Contract Value | ${paymentData.contractValue || ''} |\n`;
+        body += `| Payment Schedule | ${paymentData.schedule || 'One-time'} |\n`;
+        body += `| Total Paid | ${paymentData.totalPaid || '$0'} |\n`;
+        body += `| Remaining | ${paymentData.remaining || paymentData.contractValue || ''} |\n`;
+        body += `| Payment Status | ${paymentData.status || 'Due'} |\n`;
+
+        // Payment History
+        if (paymentData.installments && parseInt(paymentData.installments) > 1) {
+            body += `\n## Payment History\n| # | Date | Amount | Method | Receipt | Status |\n|---|------|--------|--------|---------|--------|\n`;
+            const numInstallments = parseInt(paymentData.installments);
+            const contractVal = parseFloat((paymentData.contractValue || '0').replace(/[^0-9.]/g, '')) || 0;
+            const perInstallment = contractVal > 0 ? Math.round(contractVal / numInstallments) : 0;
+            const startDate = paymentData.firstPaymentDate || subscriptions[0]?.startDate || '';
+
+            for (let i = 0; i < numInstallments; i++) {
+                let dueDate = '';
+                if (startDate) {
+                    const d = new Date(startDate + 'T00:00:00');
+                    d.setMonth(d.getMonth() + (i * Math.floor(12 / numInstallments)));
+                    dueDate = this.formatDateApi(d);
+                }
+                const installmentAmount = i === numInstallments - 1
+                    ? contractVal - (perInstallment * (numInstallments - 1))
+                    : perInstallment;
+                body += `| ${i + 1} | ${dueDate} | $${installmentAmount.toLocaleString()} | — | — | Due |\n`;
+            }
+        }
 
         body += `\n## Alert Settings\n| Field | Value |\n|-------|-------|\n`;
         body += `| Alerts Enabled | ${alertData.enabled || 'Yes'} |\n`;
