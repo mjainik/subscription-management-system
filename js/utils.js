@@ -90,8 +90,8 @@ const Utils = {
      * Get currency symbol from code
      */
     getCurrencySymbol(code) {
-        const symbols = { USD: '$', EUR: '€', GBP: '£', INR: '₹', AUD: 'A$', CAD: 'C$', JPY: '¥', CNY: '¥', AED: 'د.إ', SAR: '﷼', SGD: 'S$', BRL: 'R$' };
-        return symbols[code] || code || '';
+        // Currency symbol removed — amounts shown as plain numbers
+        return '';
     },
 
     /**
