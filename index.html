@@ -159,7 +159,6 @@
                 else if (status === 'expiringSoon') {
                     expiringOrgs.push(orgInfo);
                     atRiskRevenue += paySummary.contractValue;
-                    managerWorkload[mgr].renewalsDue++;
                 }
                 else if (status === 'expired') expiredOrgs.push(orgInfo);
 

@@ -683,7 +683,22 @@
             try {
                 Toast.show('Saving changes...', 'info');
 
-                const newBody = Utils.buildIssueBody(orgData, [subData], paymentData, alertData, notes);
+                // Preserve additional subscriptions (edit form only edits the first one)
+                const allSubs = [subData];
+                if (currentParsed.subscriptions.length > 1) {
+                    for (let i = 1; i < currentParsed.subscriptions.length; i++) {
+                        const s = currentParsed.subscriptions[i];
+                        allSubs.push({
+                            type: s['Subscription Type'], planName: s['Plan Name'],
+                            startDate: s['Start Date'], expiryDate: s['Expiry Date'],
+                            billingDate: s['Billing Date'], paymentCycle: s['Payment Cycle'],
+                            amount: s['Amount'], currency: s['Currency'] || 'USD',
+                            autoRenew: s['Auto Renew'] || 'No'
+                        });
+                    }
+                }
+
+                const newBody = Utils.buildIssueBody(orgData, allSubs, paymentData, alertData, notes);
 
                 // Build audit comment — find what changed
                 const changes = [];
