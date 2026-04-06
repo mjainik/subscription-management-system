@@ -272,6 +272,9 @@ const Utils = {
             const heading = subscriptions.length > 1 ? `Subscription ${index + 1}` : 'Subscription Details';
             body += `\n## ${heading}\n| Field | Value |\n|-------|-------|\n`;
             body += `| Subscription Type | ${sub.type || ''} |\n`;
+            if (sub.customDuration) {
+                body += `| Custom Duration | ${sub.customDuration} months |\n`;
+            }
             body += `| Plan Name | ${sub.planName || ''} |\n`;
             body += `| Start Date | ${sub.startDate || ''} |\n`;
             body += `| Expiry Date | ${sub.expiryDate || ''} |\n`;

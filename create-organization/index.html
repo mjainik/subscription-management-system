@@ -701,12 +701,10 @@
 
                 const rawType = document.getElementById('sub-type').value;
                 const customMonths = document.getElementById('sub-custom-months').value;
-                const subTypeLabel = rawType === 'Custom' && customMonths
-                    ? `Custom (${customMonths} months)`
-                    : rawType;
 
                 const subData = {
-                    type: subTypeLabel,
+                    type: rawType === 'Custom' ? 'Custom' : rawType,
+                    customDuration: rawType === 'Custom' ? customMonths : '',
                     planName: document.getElementById('sub-plan').value.trim(),
                     startDate: document.getElementById('sub-start').value,
                     expiryDate: document.getElementById('sub-expiry').value,
@@ -821,6 +819,12 @@
             FileUpload.clear();
             uploadedFile = null;
             document.getElementById('extract-message').style.display = 'none';
+
+            // Reset custom duration
+            document.getElementById('custom-duration-group').style.display = 'none';
+            document.getElementById('plan-name-group').style.display = '';
+            document.getElementById('custom-duration-hint').textContent = '';
+            document.getElementById('installments-section').style.display = 'none';
 
             // Clear errors
             document.querySelectorAll('.form-error').forEach(el => el.textContent = '');

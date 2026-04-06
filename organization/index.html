@@ -562,8 +562,11 @@
                         <div class="form-group"><label>Subscription Type</label>
                             <select id="edit-sub-type">
                                 ${['Annual','Monthly','Quarterly'].map(t => `<option value="${t}" ${(sub['Subscription Type'] || '') === t ? 'selected' : ''}>${t}</option>`).join('')}
-                                <option value="Custom" ${(sub['Subscription Type'] || '').startsWith('Custom') ? 'selected' : ''}>Custom</option>
+                                <option value="Custom" ${(sub['Subscription Type'] || '') === 'Custom' ? 'selected' : ''}>Custom</option>
                             </select>
+                        </div>
+                        <div class="form-group"><label>Custom Duration (months)</label>
+                            <input type="number" id="edit-custom-duration" value="${Utils.escapeHtml(sub['Custom Duration'] ? sub['Custom Duration'].replace(' months', '') : '')}" placeholder="e.g., 42" min="1" />
                         </div>
                         <div class="form-group"><label>Plan Name</label><input type="text" id="edit-plan" value="${Utils.escapeHtml(sub['Plan Name'] || '')}" /></div>
                     </div>
@@ -651,8 +654,12 @@
                 licenses: document.getElementById('edit-licenses').value
             };
 
+            const editSubType = document.getElementById('edit-sub-type').value;
+            const editCustomDuration = document.getElementById('edit-custom-duration').value;
+
             const subData = {
-                type: document.getElementById('edit-sub-type').value,
+                type: editSubType,
+                customDuration: editSubType === 'Custom' ? editCustomDuration : '',
                 planName: document.getElementById('edit-plan').value.trim(),
                 startDate: document.getElementById('edit-start').value,
                 expiryDate: document.getElementById('edit-expiry').value,
@@ -690,7 +697,9 @@
                     for (let i = 1; i < currentParsed.subscriptions.length; i++) {
                         const s = currentParsed.subscriptions[i];
                         allSubs.push({
-                            type: s['Subscription Type'], planName: s['Plan Name'],
+                            type: s['Subscription Type'],
+                            customDuration: s['Custom Duration'] ? s['Custom Duration'].replace(' months', '') : '',
+                            planName: s['Plan Name'],
                             startDate: s['Start Date'], expiryDate: s['Expiry Date'],
                             billingDate: s['Billing Date'], paymentCycle: s['Payment Cycle'],
                             amount: s['Amount'], currency: s['Currency'] || 'USD',
@@ -735,7 +744,7 @@
 
                 // Add type label
                 if (subData.type) {
-                    const typeLabels = ['Annual', 'Monthly', 'Quarterly'];
+                    const typeLabels = ['Annual', 'Monthly', 'Quarterly', 'Custom'];
                     for (const tl of typeLabels) {
                         if (currentLabels.includes(tl) && tl !== subData.type) {
                             await GitHubAPI.removeLabel(currentIssue.number, tl);
@@ -771,6 +780,10 @@
                     <div class="form-row">
                         <div class="form-group"><label>Subscription Type *</label>
                             <select id="new-sub-type"><option value="Annual">Annual</option><option value="Monthly">Monthly</option><option value="Quarterly">Quarterly</option><option value="Custom">Custom</option></select>
+                        </div>
+                        <div class="form-group"><label>Custom Duration (months)</label>
+                            <input type="number" id="new-sub-custom-months" placeholder="e.g., 42" min="1" />
+                            <small>Only needed for Custom type</small>
                         </div>
                         <div class="form-group"><label>Plan Name</label><input type="text" id="new-sub-plan" placeholder="e.g., Enterprise" /></div>
                     </div>
@@ -808,8 +821,10 @@
             const expiry = document.getElementById('new-sub-expiry').value;
             if (!start || !expiry) { Toast.show('Start and Expiry dates are required.', 'error'); return; }
 
+            const newSubType = document.getElementById('new-sub-type').value;
             const newSub = {
-                type: document.getElementById('new-sub-type').value,
+                type: newSubType,
+                customDuration: newSubType === 'Custom' ? (document.getElementById('new-sub-custom-months').value || '') : '',
                 planName: document.getElementById('new-sub-plan').value.trim(),
                 startDate: start,
                 expiryDate: expiry,
@@ -825,8 +840,8 @@
 
                 // Rebuild body with existing subs + new one
                 const allSubs = [...currentParsed.subscriptions.map(s => ({
-                    type: s['Subscription Type'], planName: s['Plan Name'],
-                    startDate: s['Start Date'], expiryDate: s['Expiry Date'],
+                    type: s['Subscription Type'], customDuration: s['Custom Duration'] ? s['Custom Duration'].replace(' months', '') : '',
+                    planName: s['Plan Name'], startDate: s['Start Date'], expiryDate: s['Expiry Date'],
                     billingDate: s['Billing Date'], paymentCycle: s['Payment Cycle'],
                     amount: s['Amount'], currency: s['Currency'] || 'USD', autoRenew: s['Auto Renew'] || 'No'
                 })), newSub];

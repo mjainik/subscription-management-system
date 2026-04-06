@@ -177,7 +177,8 @@
 
                 if (typeFilter) {
                     const hasLabel = issue.labels.nodes.some(l => l.name === typeFilter);
-                    if (!hasLabel && issue.type !== typeFilter) return false;
+                    const typeMatch = issue.type === typeFilter || issue.type.startsWith(typeFilter);
+                    if (!hasLabel && !typeMatch) return false;
                 }
 
                 if (payStatusFilter && issue.payStatus !== payStatusFilter) return false;

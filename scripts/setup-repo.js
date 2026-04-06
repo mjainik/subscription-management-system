@@ -27,6 +27,7 @@ const LABELS = [
     { name: 'Annual', color: '7C3AED', description: 'Annual subscription' },
     { name: 'Monthly', color: '0D9488', description: 'Monthly subscription' },
     { name: 'Quarterly', color: 'EA580C', description: 'Quarterly subscription' },
+    { name: 'Custom', color: '6366F1', description: 'Custom duration subscription' },
     // Priority
     { name: '🔴 Urgent', color: 'DC2626', description: 'Urgent priority' },
     { name: '🟠 High', color: 'EA580C', description: 'High priority' },
