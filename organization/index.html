@@ -67,11 +67,15 @@
         function renderDetail() {
             const org = currentParsed.organization;
             const alerts = currentParsed.alerts;
-            const subs = currentParsed.subscriptions;
-            const payment = currentParsed.payment;
+            const plat = currentParsed.platform || currentParsed.subscriptions[0] || null;
+            const projectBatches = currentParsed.projectBatches || [];
+            const userBatches = currentParsed.userBatches || [];
+            const legacySubs = currentParsed.subscriptions || [];
+            const payment = currentParsed.payment || {};
             const paymentHistory = currentParsed.paymentHistory || [];
             const notes = currentParsed.notes;
-            const expiryDate = Utils.getEarliestExpiry(subs);
+            const expiryDate = Utils.getEarliestExpiry(currentParsed);
+            const allExpiryItems = Utils.getAllExpiryItems(currentParsed);
             const hasRenewal = currentIssue.labels.nodes.some(l => l.name === CONFIG.labels.status.renewalInProgress);
             const days = expiryDate ? Utils.remainingDays(expiryDate) : null;
             const paySummary = Utils.calculatePaymentSummary(payment, paymentHistory);
@@ -138,38 +142,88 @@
                         </div>
                     </div>
 
-                    <!-- Subscriptions -->
-                    ${subs.map((sub, i) => {
-                        const subExpiry = sub['Expiry Date'];
-                        const subDays = subExpiry ? Utils.remainingDays(subExpiry) : null;
-                        const subStatus = subExpiry ? Utils.statusBadge(subExpiry) : '';
-                        const heading = subs.length > 1 ? `Subscription ${i + 1}` : 'Subscription Details';
+                    <!-- Platform Subscription -->
+                    ${plat ? `
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">Platform Subscription</h3>
+                            ${plat['Expiry Date'] ? Utils.statusBadge(plat['Expiry Date']) : ''}
+                        </div>
+                        <div class="detail-table">
+                            ${detailRow('Type', plat['Subscription Type'])}
+                            ${plat['Custom Duration'] ? detailRow('Duration', plat['Custom Duration']) : ''}
+                            ${detailRow('Plan', plat['Plan Name'])}
+                            ${detailRow('Start Date', Utils.formatDate(plat['Start Date']))}
+                            ${detailRow('Expiry Date', Utils.formatDate(plat['Expiry Date']))}
+                            ${detailRow('Remaining', plat['Expiry Date'] ? (Utils.remainingDays(plat['Expiry Date']) > 0 ? Utils.remainingDays(plat['Expiry Date']) + ' days' : Math.abs(Utils.remainingDays(plat['Expiry Date'])) + ' days overdue') : '—')}
+                            ${detailRow('Payment Cycle', plat['Payment Cycle'])}
+                            ${detailRow('Amount', plat['Amount'])}
+                            ${detailRow('Currency', plat['Currency'])}
+                        </div>
+                    </div>` : ''}
 
-                        return `
-                        <div class="card">
-                            <div class="card-header">
-                                <h3 class="card-title">${heading}</h3>
-                                ${subStatus}
-                            </div>
-                            <div class="detail-table">
-                                ${detailRow('Type', sub['Subscription Type'])}
-                                ${detailRow('Plan', sub['Plan Name'])}
-                                ${detailRow('Start Date', Utils.formatDate(sub['Start Date']))}
-                                ${detailRow('Expiry Date', Utils.formatDate(subExpiry))}
-                                ${detailRow('Remaining', subDays !== null ? (subDays > 0 ? subDays + ' days' : Math.abs(subDays) + ' days overdue') : '—')}
-                                ${detailRow('Billing Date', Utils.formatDate(sub['Billing Date']))}
-                                ${detailRow('Payment Cycle', sub['Payment Cycle'])}
-                                ${detailRow('Amount', sub['Amount'])}
-                                ${detailRow('Currency', sub['Currency'])}
-                                ${detailRow('Auto Renew', sub['Auto Renew'])}
-                            </div>
-                        </div>`;
-                    }).join('')}
+                    <!-- Project Batches -->
+                    ${projectBatches.length > 0 ? `
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">Project Subscriptions</h3>
+                            <span class="badge badge-default">${projectBatches.length} batch(es)</span>
+                        </div>
+                        <div class="table-container"><table>
+                            <thead><tr><th>Batch</th><th>Projects</th><th>Start</th><th>Expiry</th><th>Days</th><th>Amount</th><th>Status</th></tr></thead>
+                            <tbody>
+                                ${projectBatches.map((b, i) => {
+                                    const bExpiry = b['Expiry Date'];
+                                    const bDays = bExpiry ? Utils.remainingDays(bExpiry) : null;
+                                    return `<tr>
+                                        <td><strong>Batch ${i+1}</strong></td>
+                                        <td>${Utils.escapeHtml(b['Projects'] || '')}</td>
+                                        <td>${Utils.formatDate(b['Start Date'])}</td>
+                                        <td>${Utils.formatDate(bExpiry)}</td>
+                                        <td>${bDays !== null ? (bDays > 0 ? bDays + 'd' : `<span style="color:var(--error)">${bDays}d</span>`) : '—'}</td>
+                                        <td>${Utils.escapeHtml(b['Amount'] || '—')}</td>
+                                        <td>${bExpiry ? Utils.statusBadge(bExpiry) : '—'}</td>
+                                    </tr>`;
+                                }).join('')}
+                            </tbody>
+                        </table></div>
+                        <div style="margin-top:12px;"><button class="btn btn-secondary btn-sm" onclick="showAddBatch('project')">+ Add Project Batch</button></div>
+                    </div>` : ''}
 
-                    <!-- Add Subscription Button -->
-                    <div style="text-align:center;margin-bottom:16px;">
-                        <button class="btn btn-secondary" onclick="showAddSubscription()">+ Add Another Subscription</button>
-                    </div>
+                    <!-- User Batches -->
+                    ${userBatches.length > 0 ? `
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">User Subscriptions</h3>
+                            <span class="badge badge-default">${userBatches.length} batch(es)</span>
+                        </div>
+                        <div class="table-container"><table>
+                            <thead><tr><th>Batch</th><th>Users</th><th>Start</th><th>Expiry</th><th>Days</th><th>Amount</th><th>Status</th></tr></thead>
+                            <tbody>
+                                ${userBatches.map((b, i) => {
+                                    const bExpiry = b['Expiry Date'];
+                                    const bDays = bExpiry ? Utils.remainingDays(bExpiry) : null;
+                                    return `<tr>
+                                        <td><strong>Batch ${i+1}</strong></td>
+                                        <td>${Utils.escapeHtml(b['Users'] || '')}</td>
+                                        <td>${Utils.formatDate(b['Start Date'])}</td>
+                                        <td>${Utils.formatDate(bExpiry)}</td>
+                                        <td>${bDays !== null ? (bDays > 0 ? bDays + 'd' : `<span style="color:var(--error)">${bDays}d</span>`) : '—'}</td>
+                                        <td>${Utils.escapeHtml(b['Amount'] || '—')}</td>
+                                        <td>${bExpiry ? Utils.statusBadge(bExpiry) : '—'}</td>
+                                    </tr>`;
+                                }).join('')}
+                            </tbody>
+                        </table></div>
+                        <div style="margin-top:12px;"><button class="btn btn-secondary btn-sm" onclick="showAddBatch('user')">+ Add User Batch</button></div>
+                    </div>` : ''}
+
+                    <!-- Add batch buttons if no batches yet -->
+                    ${projectBatches.length === 0 || userBatches.length === 0 ? `
+                    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;">
+                        ${projectBatches.length === 0 ? `<button class="btn btn-secondary btn-sm" onclick="showAddBatch('project')">+ Add Project Batch</button>` : ''}
+                        ${userBatches.length === 0 ? `<button class="btn btn-secondary btn-sm" onclick="showAddBatch('user')">+ Add User Batch</button>` : ''}
+                    </div>` : ''}
 
                     <!-- Payment Summary -->
                     <div class="card">
@@ -461,7 +515,7 @@
                 Toast.show('Recording payment...', 'info');
 
                 const org = currentParsed.organization;
-                const subs = currentParsed.subscriptions;
+                const plat = currentParsed.platform || currentParsed.subscriptions[0] || {};
                 const payment = currentParsed.payment || {};
                 const payHistory = [...(currentParsed.paymentHistory || [])];
                 const alerts = currentParsed.alerts;
@@ -472,7 +526,7 @@
                 for (const p of payHistory) {
                     if (p.status === 'Due') {
                         p.date = date;
-                        const currSymbol = Utils.getCurrencySymbol((subs[0] || {})['Currency']);
+                        const currSymbol = Utils.getCurrencySymbol(plat['Currency']);
                         p.amount = currSymbol + paidAmount.toLocaleString();
                         p.method = method;
                         p.receipt = receipt;
@@ -484,7 +538,7 @@
 
                 // If no "Due" installment found (one-time or all paid), add a new row
                 if (!updatedExisting) {
-                    const currSymbol2 = Utils.getCurrencySymbol((subs[0] || {})['Currency']);
+                    const currSymbol2 = Utils.getCurrencySymbol(plat['Currency']);
                     payHistory.push({
                         number: String(payHistory.length + 1),
                         date: date,
@@ -523,30 +577,15 @@
                     }
                 }
 
-                // Rebuild issue body
-                const orgData = {
-                    name: org['Organization Name'] || currentIssue.title,
-                    email: org['Contact Email'] || '', phone: org['Phone'] || '',
-                    address: org['Address'] || '', orgType: org['Organization Type'] || '',
-                    accountManager: org['Account Manager'] || '',
-                    contactPerson: org['Contact Person'] || '', designation: org['Designation'] || '',
-                    secondaryContact: org['Secondary Contact'] || '', secondaryEmail: org['Secondary Email'] || '',
-                    secondaryPhone: org['Secondary Phone'] || '', gstId: org['GST/Tax ID'] || '',
-                    dealSource: org['Deal Source'] || '', licenses: org['Number of Licenses'] || ''
-                };
-
-                const subsData = subs.map(s => ({
-                    type: s['Subscription Type'] || '', customDuration: s['Custom Duration'] ? s['Custom Duration'].replace(' months', '') : '',
-                    planName: s['Plan Name'] || '', startDate: s['Start Date'] || '', expiryDate: s['Expiry Date'] || '',
-                    billingDate: s['Billing Date'] || '', paymentCycle: s['Payment Cycle'] || '',
-                    amount: s['Amount'] || '', currency: s['Currency'] || 'USD', autoRenew: s['Auto Renew'] || 'No'
-                }));
+                // Rebuild issue body preserving all data
+                const orgData = buildOrgDataFromParsed(currentParsed, currentIssue);
+                const subTypes = buildSubTypesFromParsed(currentParsed);
 
                 const paymentData = {
                     contractValue: payment['Contract Value'] || '',
                     schedule: payment['Payment Schedule'] || 'One-time',
-                    totalPaid: Utils.getCurrencySymbol((subs[0] || {})['Currency']) + totalPaid.toFixed(2).replace(/\.00$/, ''),
-                    remaining: Utils.getCurrencySymbol((subs[0] || {})['Currency']) + remaining.toFixed(2).replace(/\.00$/, ''),
+                    totalPaid: Utils.getCurrencySymbol(plat['Currency']) + totalPaid.toFixed(2).replace(/\.00$/, ''),
+                    remaining: Utils.getCurrencySymbol(plat['Currency']) + remaining.toFixed(2).replace(/\.00$/, ''),
                     status: payStatus
                 };
 
@@ -557,7 +596,7 @@
                 };
 
                 // Build body without auto-generated history
-                let newBody = Utils.buildIssueBody(orgData, subsData, paymentData, alertData, notes);
+                let newBody = Utils.buildIssueBody(orgData, subTypes, paymentData, alertData, notes);
 
                 // Remove auto-generated Payment History (from buildIssueBody installment generation)
                 newBody = newBody.replace(/\n## Payment History\n[\s\S]*?(?=\n## |$)/, '');
@@ -578,7 +617,7 @@
 
                 // Add audit comment
                 const userName = Auth.getUserName();
-                const cs = Utils.getCurrencySymbol((subs[0] || {})['Currency']);
+                const cs = Utils.getCurrencySymbol(plat['Currency']);
                 const commentBody = `💰 **Payment recorded by ${userName}** — ${Utils.formatDate(new Date().toISOString())}\n\n| Field | Value |\n|-------|-------|\n| Date | ${Utils.formatDate(date)} |\n| Amount | ${cs}${paidAmount.toLocaleString()} |\n| Method | ${method} |\n| Receipt | ${receipt} |\n\n**Updated Totals:** Paid: ${cs}${totalPaid.toLocaleString()} | Remaining: ${cs}${remaining.toLocaleString()} | Status: ${payStatus}`;
 
                 await GitHubAPI.addComment(currentIssue.number, commentBody);
@@ -600,6 +639,152 @@
             }
         }
 
+        // ─── Helper: rebuild subTypes object from parsed data ──────
+        function buildSubTypesFromParsed(parsed) {
+            const subTypes = { platform: null, projectBatches: [], userBatches: [] };
+
+            if (parsed.platform) {
+                const p = parsed.platform;
+                subTypes.platform = {
+                    type: p['Subscription Type'] || '', customDuration: p['Custom Duration'] ? p['Custom Duration'].replace(' months', '') : '',
+                    planName: p['Plan Name'] || '', startDate: p['Start Date'] || '', expiryDate: p['Expiry Date'] || '',
+                    billingDate: p['Billing Date'] || '', paymentCycle: p['Payment Cycle'] || '',
+                    amount: p['Amount'] || '', currency: p['Currency'] || 'USD', autoRenew: p['Auto Renew'] || 'No'
+                };
+            }
+
+            (parsed.projectBatches || []).forEach(b => {
+                subTypes.projectBatches.push({
+                    projects: b['Projects'] || '', startDate: b['Start Date'] || '', expiryDate: b['Expiry Date'] || '',
+                    amount: b['Amount'] || '', currency: b['Currency'] || 'USD', paymentCycle: b['Payment Cycle'] || ''
+                });
+            });
+
+            (parsed.userBatches || []).forEach(b => {
+                subTypes.userBatches.push({
+                    users: b['Users'] || '', startDate: b['Start Date'] || '', expiryDate: b['Expiry Date'] || '',
+                    amount: b['Amount'] || '', currency: b['Currency'] || 'USD', paymentCycle: b['Payment Cycle'] || ''
+                });
+            });
+
+            // Fallback: legacy subscriptions as platform
+            if (!subTypes.platform && !subTypes.projectBatches.length && !subTypes.userBatches.length && parsed.subscriptions && parsed.subscriptions.length > 0) {
+                const s = parsed.subscriptions[0];
+                subTypes.platform = {
+                    type: s['Subscription Type'] || '', customDuration: s['Custom Duration'] ? s['Custom Duration'].replace(' months', '') : '',
+                    planName: s['Plan Name'] || '', startDate: s['Start Date'] || '', expiryDate: s['Expiry Date'] || '',
+                    billingDate: s['Billing Date'] || '', paymentCycle: s['Payment Cycle'] || '',
+                    amount: s['Amount'] || '', currency: s['Currency'] || 'USD', autoRenew: s['Auto Renew'] || 'No'
+                };
+            }
+
+            return subTypes;
+        }
+
+        // ─── Add Batch (inline form) ──────────────────────
+        function showAddBatch(batchType) {
+            const label = batchType === 'project' ? 'Project' : 'User';
+            const fieldLabel = batchType === 'project' ? 'Project Names/Numbers' : 'User Range/Description';
+            const fieldId = batchType === 'project' ? 'new-proj-names' : 'new-user-range';
+
+            const formHtml = `
+                <div class="card" id="add-batch-form" style="margin-bottom:16px;border:2px solid var(--brand);">
+                    <div class="card-header">
+                        <h3 class="card-title">Add ${label} Batch</h3>
+                        <button class="btn btn-text btn-sm" onclick="loadOrganization()">Cancel</button>
+                    </div>
+                    <div class="form-group"><label>${fieldLabel} *</label><input type="text" id="${fieldId}" placeholder="e.g., ${batchType === 'project' ? '1, 2, 3, 4, 5' : '1-10 (10 users)'}" /></div>
+                    <div class="form-row">
+                        <div class="form-group"><label>Start Date *</label><input type="date" id="new-batch-start" /></div>
+                        <div class="form-group"><label>Expiry Date *</label><input type="date" id="new-batch-expiry" /></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group"><label>Amount</label><input type="number" id="new-batch-amount" placeholder="e.g., 200000" min="0" /></div>
+                        <div class="form-group"><label>Payment Cycle</label>
+                            <select id="new-batch-cycle"><option value="">Select</option><option value="Monthly">Monthly</option><option value="Quarterly">Quarterly</option><option value="Annual">Annual</option></select>
+                        </div>
+                    </div>
+                    <button class="btn btn-primary" onclick="saveNewBatch('${batchType}')">Add ${label} Batch</button>
+                </div>`;
+
+            const container = document.getElementById('org-detail');
+            const existingForm = document.getElementById('add-batch-form');
+            if (existingForm) existingForm.remove();
+
+            container.insertAdjacentHTML('beforeend', formHtml);
+            document.getElementById('add-batch-form').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        async function saveNewBatch(batchType) {
+            const isProject = batchType === 'project';
+            const names = document.getElementById(isProject ? 'new-proj-names' : 'new-user-range').value.trim();
+            const start = document.getElementById('new-batch-start').value;
+            const expiry = document.getElementById('new-batch-expiry').value;
+
+            if (!names || !start || !expiry) { Toast.show('All fields are required.', 'error'); return; }
+
+            try {
+                Toast.show('Adding batch...', 'info');
+
+                const plat = currentParsed.platform || currentParsed.subscriptions[0] || {};
+                const currency = plat['Currency'] || 'USD';
+                const currSym = Utils.getCurrencySymbol(currency);
+                const amountVal = document.getElementById('new-batch-amount').value;
+
+                const newBatch = isProject ? {
+                    projects: names, startDate: start, expiryDate: expiry,
+                    amount: amountVal ? currSym + amountVal : '', currency: currency,
+                    paymentCycle: document.getElementById('new-batch-cycle').value
+                } : {
+                    users: names, startDate: start, expiryDate: expiry,
+                    amount: amountVal ? currSym + amountVal : '', currency: currency,
+                    paymentCycle: document.getElementById('new-batch-cycle').value
+                };
+
+                // Rebuild with new batch added
+                const subTypes = buildSubTypesFromParsed(currentParsed);
+                if (isProject) subTypes.projectBatches.push(newBatch);
+                else subTypes.userBatches.push(newBatch);
+
+                const orgData = buildOrgDataFromParsed(currentParsed, currentIssue);
+                const paymentData = buildPaymentDataFromParsed(currentParsed, plat);
+                const alertData = { enabled: currentParsed.alerts['Alerts Enabled'] || 'Yes', daysBefore: currentParsed.alerts['Alert Days Before'] || '60', recipients: currentParsed.alerts['Alert Recipients'] || '' };
+
+                const newBody = Utils.buildIssueBody(orgData, subTypes, paymentData, alertData, currentParsed.notes);
+                await GitHubAPI.updateOrganization(currentIssue.number, { body: newBody });
+
+                const userName = Auth.getUserName();
+                await GitHubAPI.addComment(currentIssue.number, `✏️ **${isProject ? 'Project' : 'User'} batch added by ${userName}** — ${Utils.formatDate(new Date().toISOString())}\n\n${isProject ? 'Projects' : 'Users'}: ${names}\nPeriod: ${start} to ${expiry}`);
+
+                Toast.show('Batch added!', 'success');
+                await loadOrganization();
+            } catch (error) {
+                Toast.show('Failed: ' + error.message, 'error');
+            }
+        }
+
+        // ─── Helpers for rebuilding from parsed data ──────
+        function buildOrgDataFromParsed(parsed, issue) {
+            const org = parsed.organization;
+            return {
+                name: org['Organization Name'] || issue.title, email: org['Contact Email'] || '', phone: org['Phone'] || '',
+                address: org['Address'] || '', orgType: org['Organization Type'] || '', accountManager: org['Account Manager'] || '',
+                contactPerson: org['Contact Person'] || '', designation: org['Designation'] || '',
+                secondaryContact: org['Secondary Contact'] || '', secondaryEmail: org['Secondary Email'] || '',
+                secondaryPhone: org['Secondary Phone'] || '', gstId: org['GST/Tax ID'] || '',
+                dealSource: org['Deal Source'] || '', licenses: org['Number of Licenses'] || ''
+            };
+        }
+
+        function buildPaymentDataFromParsed(parsed, plat) {
+            const payment = parsed.payment || {};
+            return {
+                contractValue: payment['Contract Value'] || '', schedule: payment['Payment Schedule'] || 'One-time',
+                totalPaid: payment['Total Paid'] || Utils.getCurrencySymbol(plat['Currency']) + '0',
+                remaining: payment['Remaining'] || '', status: payment['Payment Status'] || 'Due'
+            };
+        }
+
         // ─── In-Page Edit Mode ──────────────────────────
         let isEditing = false;
 
@@ -614,7 +799,7 @@
 
         function renderEditForm() {
             const org = currentParsed.organization;
-            const sub = currentParsed.subscriptions[0] || {};
+            const sub = currentParsed.platform || currentParsed.subscriptions[0] || {};
             const alerts = currentParsed.alerts;
             const payment = currentParsed.payment || {};
             const notes = currentParsed.notes;
@@ -797,7 +982,7 @@
             const paymentData = {
                 contractValue: document.getElementById('edit-contract-value').value,
                 schedule: document.getElementById('edit-pay-schedule').value,
-                totalPaid: currentParsed.payment?.['Total Paid'] || Utils.getCurrencySymbol((currentParsed.subscriptions[0] || {})['Currency']) + '0',
+                totalPaid: currentParsed.payment?.['Total Paid'] || Utils.getCurrencySymbol((currentParsed.platform || currentParsed.subscriptions[0] || {})['Currency']) + '0',
                 remaining: currentParsed.payment?.['Remaining'] || '',
                 status: currentParsed.payment?.['Payment Status'] || 'Due'
             };
@@ -815,29 +1000,17 @@
             try {
                 Toast.show('Saving changes...', 'info');
 
-                // Preserve additional subscriptions (edit form only edits the first one)
-                const allSubs = [subData];
-                if (currentParsed.subscriptions.length > 1) {
-                    for (let i = 1; i < currentParsed.subscriptions.length; i++) {
-                        const s = currentParsed.subscriptions[i];
-                        allSubs.push({
-                            type: s['Subscription Type'],
-                            customDuration: s['Custom Duration'] ? s['Custom Duration'].replace(' months', '') : '',
-                            planName: s['Plan Name'],
-                            startDate: s['Start Date'], expiryDate: s['Expiry Date'],
-                            billingDate: s['Billing Date'], paymentCycle: s['Payment Cycle'],
-                            amount: s['Amount'], currency: s['Currency'] || 'USD',
-                            autoRenew: s['Auto Renew'] || 'No'
-                        });
-                    }
-                }
+                // Rebuild with edited platform + preserved batches
+                const subTypes = buildSubTypesFromParsed(currentParsed);
+                // Update platform with edited values
+                subTypes.platform = subData;
 
-                const newBody = Utils.buildIssueBody(orgData, allSubs, paymentData, alertData, notes);
+                const newBody = Utils.buildIssueBody(orgData, subTypes, paymentData, alertData, notes);
 
                 // Build audit comment — find what changed
                 const changes = [];
                 const oldOrg = currentParsed.organization;
-                const oldSub = currentParsed.subscriptions[0] || {};
+                const oldSub = currentParsed.platform || currentParsed.subscriptions[0] || {};
                 const fieldMap = [
                     ['Organization Name', orgData.name, oldOrg['Organization Name'] || currentIssue.title],
                     ['Contact Email', orgData.email, oldOrg['Contact Email']],
@@ -892,111 +1065,7 @@
             }
         }
 
-        // ─── Add Subscription In-Page ─────────────────────
-        function showAddSubscription() {
-            const container = document.getElementById('org-detail');
-            const formHtml = `
-                <div class="card" id="add-sub-form" style="margin-bottom:16px;border:2px solid var(--brand);">
-                    <div class="card-header">
-                        <h3 class="card-title">Add New Subscription</h3>
-                        <button class="btn btn-text btn-sm" onclick="loadOrganization()">Cancel</button>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group"><label>Subscription Type *</label>
-                            <select id="new-sub-type"><option value="Annual">Annual</option><option value="Monthly">Monthly</option><option value="Quarterly">Quarterly</option><option value="Custom">Custom</option></select>
-                        </div>
-                        <div class="form-group"><label>Custom Duration (months)</label>
-                            <input type="number" id="new-sub-custom-months" placeholder="e.g., 42" min="1" />
-                            <small>Only needed for Custom type</small>
-                        </div>
-                        <div class="form-group"><label>Plan Name</label><input type="text" id="new-sub-plan" placeholder="e.g., Enterprise" /></div>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group"><label>Start Date *</label><input type="date" id="new-sub-start" /></div>
-                        <div class="form-group"><label>Expiry Date *</label><input type="date" id="new-sub-expiry" /></div>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group"><label>Billing Date</label><input type="date" id="new-sub-billing" /></div>
-                        <div class="form-group"><label>Payment Cycle</label>
-                            <select id="new-sub-cycle"><option value="Monthly">Monthly</option><option value="Quarterly">Quarterly</option><option value="Annual">Annual</option></select>
-                        </div>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group"><label>Amount</label><input type="text" id="new-sub-amount" placeholder="e.g., 5000" /></div>
-                        <div class="form-group"><label>Currency</label>
-                            <select id="new-sub-currency"><option value="USD">USD</option><option value="EUR">EUR</option><option value="INR">INR</option></select>
-                        </div>
-                    </div>
-                    <button class="btn btn-primary" onclick="saveNewSubscription()">Add Subscription</button>
-                </div>
-            `;
-
-            // Insert after the "Add Another Subscription" button
-            const addBtn = container.querySelector('[onclick="showAddSubscription()"]');
-            if (addBtn) {
-                addBtn.parentElement.insertAdjacentHTML('afterend', formHtml);
-                addBtn.parentElement.style.display = 'none';
-                document.getElementById('add-sub-form').scrollIntoView({ behavior: 'smooth' });
-            }
-        }
-
-        async function saveNewSubscription() {
-            const start = document.getElementById('new-sub-start').value;
-            const expiry = document.getElementById('new-sub-expiry').value;
-            if (!start || !expiry) { Toast.show('Start and Expiry dates are required.', 'error'); return; }
-
-            const newSubType = document.getElementById('new-sub-type').value;
-            const newSub = {
-                type: newSubType,
-                customDuration: newSubType === 'Custom' ? (document.getElementById('new-sub-custom-months').value || '') : '',
-                planName: document.getElementById('new-sub-plan').value.trim(),
-                startDate: start,
-                expiryDate: expiry,
-                billingDate: document.getElementById('new-sub-billing').value || start,
-                paymentCycle: document.getElementById('new-sub-cycle').value,
-                amount: document.getElementById('new-sub-amount').value.trim(),
-                currency: document.getElementById('new-sub-currency').value,
-                autoRenew: 'No'
-            };
-
-            try {
-                Toast.show('Adding subscription...', 'info');
-
-                // Rebuild body with existing subs + new one
-                const allSubs = [...currentParsed.subscriptions.map(s => ({
-                    type: s['Subscription Type'], customDuration: s['Custom Duration'] ? s['Custom Duration'].replace(' months', '') : '',
-                    planName: s['Plan Name'], startDate: s['Start Date'], expiryDate: s['Expiry Date'],
-                    billingDate: s['Billing Date'], paymentCycle: s['Payment Cycle'],
-                    amount: s['Amount'], currency: s['Currency'] || 'USD', autoRenew: s['Auto Renew'] || 'No'
-                })), newSub];
-
-                const org = currentParsed.organization;
-                const orgData = {
-                    name: org['Organization Name'] || currentIssue.title,
-                    email: org['Contact Email'] || '', phone: org['Phone'] || '',
-                    address: org['Address'] || '', orgType: org['Organization Type'] || '',
-                    accountManager: org['Account Manager'] || '',
-                    contactPerson: org['Contact Person'] || '', designation: org['Designation'] || '',
-                    secondaryContact: org['Secondary Contact'] || '', secondaryEmail: org['Secondary Email'] || '',
-                    secondaryPhone: org['Secondary Phone'] || '', gstId: org['GST/Tax ID'] || '',
-                    dealSource: org['Deal Source'] || '', licenses: org['Number of Licenses'] || ''
-                };
-                const payment = currentParsed.payment || {};
-                const paymentData = { contractValue: payment['Contract Value'] || '', schedule: payment['Payment Schedule'] || 'One-time', totalPaid: payment['Total Paid'] || Utils.getCurrencySymbol((currentParsed.subscriptions[0] || {})['Currency']) + '0', remaining: payment['Remaining'] || '', status: payment['Payment Status'] || 'Due' };
-                const alertData = { enabled: currentParsed.alerts['Alerts Enabled'] || 'Yes', daysBefore: currentParsed.alerts['Alert Days Before'] || '60', recipients: currentParsed.alerts['Alert Recipients'] || '' };
-
-                const newBody = Utils.buildIssueBody(orgData, allSubs, paymentData, alertData, currentParsed.notes);
-                await GitHubAPI.updateOrganization(currentIssue.number, { body: newBody });
-
-                const userName = Auth.getUserName();
-                await GitHubAPI.addComment(currentIssue.number, `✏️ **New subscription added by ${userName}** — ${Utils.formatDate(new Date().toISOString())}\n\nType: ${newSub.type}\nPeriod: ${newSub.startDate} to ${newSub.expiryDate}\nAmount: ${newSub.amount}`);
-
-                Toast.show('Subscription added!', 'success');
-                await loadOrganization();
-            } catch (error) {
-                Toast.show('Failed to add subscription: ' + error.message, 'error');
-            }
-        }
+        // Old showAddSubscription/saveNewSubscription replaced by showAddBatch/saveNewBatch above
 
         // Export PDF
         function exportOrgPDF() {

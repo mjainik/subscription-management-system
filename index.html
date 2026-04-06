@@ -93,19 +93,30 @@
             for (const issue of issues) {
                 const parsed = Utils.parseIssueBody(issue.body);
                 const org = parsed.organization;
-                const sub = parsed.subscriptions[0] || {};
+                const plat = parsed.platform || parsed.subscriptions[0] || {};
                 const payment = parsed.payment || {};
                 const payHistory = parsed.paymentHistory || [];
-                const expiryDate = Utils.getEarliestExpiry(parsed.subscriptions);
+                const expiryDate = Utils.getEarliestExpiry(parsed);
                 const paySummary = Utils.calculatePaymentSummary(payment, payHistory);
+
+                // Get soonest expiring item for hover label
+                const soonestItem = Utils.getSoonestExpiringItem(parsed);
+
+                // Build type summary
+                const typeParts = [];
+                if (parsed.platform) typeParts.push(plat['Subscription Type'] || 'Platform');
+                if (parsed.projectBatches && parsed.projectBatches.length > 0) typeParts.push('Projects(' + parsed.projectBatches.length + ')');
+                if (parsed.userBatches && parsed.userBatches.length > 0) typeParts.push('Users(' + parsed.userBatches.length + ')');
+                const typeSummary = typeParts.join(' + ') || (plat['Subscription Type'] || '—');
 
                 const orgInfo = {
                     number: issue.number,
                     title: issue.title,
                     expiryDate,
                     days: expiryDate ? Utils.remainingDays(expiryDate) : null,
-                    amount: sub['Amount'] || '—',
-                    type: sub['Subscription Type'] || '—',
+                    amount: plat['Amount'] || '—',
+                    type: typeSummary,
+                    soonestLabel: soonestItem ? soonestItem.label : '',
                     orgType: org['Organization Type'] || 'Other',
                     manager: org['Account Manager'] || 'Unassigned',
                     contractValue: paySummary.contractValue,
@@ -413,8 +424,9 @@
 
             const listHtml = displayList.length > 0 ? displayList.map(org => {
                 const days = org.days !== null ? (org.days > 0 ? `${org.days}d left` : `${Math.abs(org.days)}d overdue`) : '';
+                const batchLabel = org.soonestLabel ? ` · ${org.soonestLabel}` : '';
                 return `<a href="${CONFIG.baseUrl}/organization/?id=${org.number}" class="metric-dropdown-item">
-                    <span class="metric-dropdown-name">${Utils.escapeHtml(org.title)}</span>
+                    <span class="metric-dropdown-name">${Utils.escapeHtml(org.title)}${batchLabel ? '<small style="color:var(--text-muted);font-weight:400;">' + Utils.escapeHtml(batchLabel) + '</small>' : ''}</span>
                     <span class="metric-dropdown-days">${days}</span>
                 </a>`;
             }).join('') + (hasMore ? `<a href="${CONFIG.baseUrl}/organizations/" class="metric-dropdown-item metric-dropdown-more">View all ${orgList.length} →</a>` : '')

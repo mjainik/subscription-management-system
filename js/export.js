@@ -24,14 +24,21 @@ const Export = {
         for (const item of data) {
             const parsed = Utils.parseIssueBody(item.body);
             const org = parsed.organization;
-            const sub = parsed.subscriptions[0] || {};
+            const plat = parsed.platform || parsed.subscriptions[0] || {};
             const payment = parsed.payment || {};
             const alerts = parsed.alerts;
-            const expiryDate = sub['Expiry Date'] || '';
+            const expiryDate = Utils.getEarliestExpiry(parsed) || '';
             const days = expiryDate ? Utils.remainingDays(expiryDate) : '';
             const statusKey = expiryDate ? Utils.getStatus(expiryDate) : '';
             const statusLabel = statusKey ? CONFIG.labels.status[statusKey] : '';
             const paySummary = Utils.calculatePaymentSummary(payment, parsed.paymentHistory || []);
+
+            // Subscription types summary
+            const subTypeParts = [];
+            if (parsed.platform) subTypeParts.push('Platform');
+            if (parsed.projectBatches && parsed.projectBatches.length > 0) subTypeParts.push('Projects(' + parsed.projectBatches.length + ')');
+            if (parsed.userBatches && parsed.userBatches.length > 0) subTypeParts.push('Users(' + parsed.userBatches.length + ')');
+            const subTypeSummary = subTypeParts.join(' + ') || (plat['Subscription Type'] || '');
 
             const row = [
                 this.csvEscape(item.title),
@@ -41,14 +48,14 @@ const Export = {
                 this.csvEscape(org['Contact Person'] || ''),
                 this.csvEscape(org['Designation'] || ''),
                 this.csvEscape(org['Account Manager'] || ''),
-                this.csvEscape(sub['Subscription Type'] || ''),
-                this.csvEscape(sub['Plan Name'] || ''),
-                this.csvEscape(sub['Start Date'] || ''),
+                this.csvEscape(subTypeSummary),
+                this.csvEscape(plat['Plan Name'] || ''),
+                this.csvEscape(plat['Start Date'] || ''),
                 this.csvEscape(expiryDate),
-                this.csvEscape(sub['Billing Date'] || ''),
-                this.csvEscape(sub['Payment Cycle'] || ''),
-                this.csvEscape(sub['Amount'] || ''),
-                this.csvEscape(sub['Currency'] || 'USD'),
+                this.csvEscape(plat['Billing Date'] || ''),
+                this.csvEscape(plat['Payment Cycle'] || ''),
+                this.csvEscape(plat['Amount'] || ''),
+                this.csvEscape(plat['Currency'] || 'USD'),
                 this.csvEscape(payment['Contract Value'] || ''),
                 this.csvEscape(String(paySummary.totalPaid)),
                 this.csvEscape(String(paySummary.remaining)),
@@ -137,6 +144,7 @@ const Export = {
         const payment = parsed.payment || {};
         const payHistory = parsed.paymentHistory || [];
         const paySummary = Utils.calculatePaymentSummary(payment, payHistory);
+        const plat = parsed.platform || parsed.subscriptions[0] || {};
 
         const tdStyle = 'padding: 8px; border: 1px solid #E5E7EB;';
         const thStyle = `${tdStyle} font-weight: bold; width: 200px;`;
@@ -160,9 +168,19 @@ const Export = {
             </table>
         `;
 
-        for (let i = 0; i < parsed.subscriptions.length; i++) {
-            const sub = parsed.subscriptions[i];
-            const heading = parsed.subscriptions.length > 1 ? `Subscription ${i + 1}` : 'Subscription Details';
+        // Collect all subscription items for PDF
+        const pdfSubItems = [];
+        if (parsed.platform) pdfSubItems.push({ heading: 'Platform Subscription', sub: parsed.platform });
+        (parsed.projectBatches || []).forEach((b, i) => pdfSubItems.push({ heading: `Project Batch ${i+1}: ${b['Projects'] || ''}`, sub: b }));
+        (parsed.userBatches || []).forEach((b, i) => pdfSubItems.push({ heading: `User Batch ${i+1}: ${b['Users'] || ''}`, sub: b }));
+        // Fallback: legacy subscriptions
+        if (pdfSubItems.length === 0) {
+            parsed.subscriptions.forEach((s, i) => pdfSubItems.push({ heading: parsed.subscriptions.length > 1 ? `Subscription ${i+1}` : 'Subscription Details', sub: s }));
+        }
+
+        for (let i = 0; i < pdfSubItems.length; i++) {
+            const sub = pdfSubItems[i].sub;
+            const heading = pdfSubItems[i].heading;
             const expiryDate = sub['Expiry Date'] || '';
             const days = expiryDate ? Utils.remainingDays(expiryDate) : '—';
             const status = expiryDate ? Utils.getStatus(expiryDate) : '';

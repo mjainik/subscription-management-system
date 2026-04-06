@@ -190,82 +190,89 @@
                             </div>
                         </div>
 
-                        <!-- Subscription Details -->
-                        <h3 class="section-title" style="margin-top: 24px;">Subscription Details</h3>
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label for="sub-type">Subscription Type *</label>
-                                <select id="sub-type" required onchange="onSubTypeChange()">
-                                    <option value="">Select type</option>
-                                    <option value="Annual">Annual</option>
-                                    <option value="Monthly">Monthly</option>
-                                    <option value="Quarterly">Quarterly</option>
-                                    <option value="Custom">Custom (set duration)</option>
-                                </select>
-                                <div class="form-error" id="sub-type-error"></div>
-                            </div>
-                            <div class="form-group" id="custom-duration-group" style="display:none;">
-                                <label for="sub-custom-months">Duration (months) *</label>
-                                <input type="number" id="sub-custom-months" placeholder="e.g., 42 for 3.5 years" min="1" max="120" onchange="autoSetDates()" />
-                                <small id="custom-duration-hint"></small>
-                            </div>
-                            <div class="form-group" id="plan-name-group">
-                                <label for="sub-plan">Plan Name</label>
-                                <input type="text" id="sub-plan" placeholder="e.g., Enterprise, Pro, Basic" />
-                            </div>
+                        <!-- Subscription Types -->
+                        <h3 class="section-title" style="margin-top: 24px;">Subscription Types</h3>
+                        <p style="color:var(--text-secondary);font-size:13px;margin-bottom:16px;">Select which subscription types apply to this organization.</p>
+                        <div class="sub-type-checks">
+                            <label class="check-label"><input type="checkbox" id="chk-platform" checked onchange="toggleSubSection('platform')"> Platform Subscription</label>
+                            <label class="check-label"><input type="checkbox" id="chk-projects" onchange="toggleSubSection('projects')"> Project-wise Subscription</label>
+                            <label class="check-label"><input type="checkbox" id="chk-users" onchange="toggleSubSection('users')"> User-wise Subscription</label>
                         </div>
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label for="sub-start">Start Date *</label>
-                                <div class="date-input-wrapper">
-                                    <input type="text" id="sub-start-display" class="date-display" placeholder="DD-MMM-YYYY" readonly />
-                                    <input type="date" id="sub-start" required onchange="onDateChange('sub-start'); autoSetDates()" class="date-hidden" />
+                        <div class="form-error" id="sub-type-error"></div>
+
+                        <!-- Platform Subscription -->
+                        <div id="section-platform" class="sub-section">
+                            <h4 class="sub-section-title">Platform Subscription</h4>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Subscription Type *</label>
+                                    <select id="plat-type" onchange="onPlatTypeChange()">
+                                        <option value="Annual">Annual</option>
+                                        <option value="Monthly">Monthly</option>
+                                        <option value="Quarterly">Quarterly</option>
+                                        <option value="Custom">Custom (set duration)</option>
+                                    </select>
                                 </div>
-                                <div class="form-error" id="sub-start-error"></div>
-                            </div>
-                            <div class="form-group">
-                                <label for="sub-expiry">Expiry Date *</label>
-                                <div class="date-input-wrapper">
-                                    <input type="text" id="sub-expiry-display" class="date-display" placeholder="DD-MMM-YYYY" readonly />
-                                    <input type="date" id="sub-expiry" required onchange="onDateChange('sub-expiry')" class="date-hidden" />
+                                <div class="form-group" id="plat-custom-group" style="display:none;">
+                                    <label>Duration (months)</label>
+                                    <input type="number" id="plat-custom-months" placeholder="e.g., 42" min="1" max="120" onchange="autoPlatDates()" />
+                                    <small id="plat-custom-hint"></small>
                                 </div>
-                                <div class="form-error" id="sub-expiry-error"></div>
-                            </div>
-                        </div>
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label for="sub-billing">Billing Date</label>
-                                <div class="date-input-wrapper">
-                                    <input type="text" id="sub-billing-display" class="date-display" placeholder="DD-MMM-YYYY" readonly />
-                                    <input type="date" id="sub-billing" onchange="onDateChange('sub-billing')" class="date-hidden" />
+                                <div class="form-group" id="plat-plan-group">
+                                    <label>Plan Name</label>
+                                    <input type="text" id="plat-plan" placeholder="e.g., Enterprise, Pro" />
                                 </div>
                             </div>
-                            <div class="form-group">
-                                <label for="sub-cycle">Payment Cycle</label>
-                                <select id="sub-cycle">
-                                    <option value="">Select cycle</option>
-                                    <option value="Monthly">Monthly</option>
-                                    <option value="Quarterly">Quarterly</option>
-                                    <option value="Annual">Annual</option>
-                                </select>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Start Date *</label>
+                                    <div class="date-input-wrapper">
+                                        <input type="text" id="plat-start-display" class="date-display" placeholder="DD-MMM-YYYY" readonly />
+                                        <input type="date" id="plat-start" onchange="onDateChange('plat-start'); autoPlatDates()" class="date-hidden" />
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label>Expiry Date *</label>
+                                    <div class="date-input-wrapper">
+                                        <input type="text" id="plat-expiry-display" class="date-display" placeholder="DD-MMM-YYYY" readonly />
+                                        <input type="date" id="plat-expiry" onchange="onDateChange('plat-expiry')" class="date-hidden" />
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Amount</label>
+                                    <input type="number" id="plat-amount" placeholder="e.g., 500000" min="0" step="0.01" />
+                                </div>
+                                <div class="form-group">
+                                    <label>Currency</label>
+                                    <select id="plat-currency">
+                                        <option value="USD">USD</option><option value="EUR">EUR</option><option value="GBP">GBP</option>
+                                        <option value="INR">INR</option><option value="AUD">AUD</option><option value="CAD">CAD</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Payment Cycle</label>
+                                    <select id="plat-cycle"><option value="">Select</option><option value="Monthly">Monthly</option><option value="Quarterly">Quarterly</option><option value="Annual">Annual</option></select>
+                                </div>
+                                <div class="form-group"></div>
                             </div>
                         </div>
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label for="sub-amount">Amount</label>
-                                <input type="number" id="sub-amount" placeholder="e.g., 12000" min="0" step="0.01" />
-                            </div>
-                            <div class="form-group">
-                                <label for="sub-currency">Currency</label>
-                                <select id="sub-currency">
-                                    <option value="USD">USD</option>
-                                    <option value="EUR">EUR</option>
-                                    <option value="GBP">GBP</option>
-                                    <option value="INR">INR</option>
-                                    <option value="AUD">AUD</option>
-                                    <option value="CAD">CAD</option>
-                                </select>
-                            </div>
+
+                        <!-- Project Subscriptions -->
+                        <div id="section-projects" class="sub-section" style="display:none;">
+                            <h4 class="sub-section-title">Project Subscriptions</h4>
+                            <div id="project-batches-container"></div>
+                            <button type="button" class="btn btn-secondary btn-sm" onclick="addProjectBatch()">+ Add Project Batch</button>
+                        </div>
+
+                        <!-- User Subscriptions -->
+                        <div id="section-users" class="sub-section" style="display:none;">
+                            <h4 class="sub-section-title">User Subscriptions</h4>
+                            <div id="user-batches-container"></div>
+                            <button type="button" class="btn btn-secondary btn-sm" onclick="addUserBatch()">+ Add User Batch</button>
                         </div>
 
                         <!-- Payment Details -->
@@ -450,32 +457,34 @@
             if (data.orgName) document.getElementById('org-name').value = data.orgName;
             if (data.email) document.getElementById('org-email').value = data.email;
             if (data.phone) document.getElementById('org-phone').value = data.phone;
-            if (data.startDate) setDateValue('sub-start', data.startDate);
-            if (data.expiryDate) setDateValue('sub-expiry', data.expiryDate);
-            if (data.billingDate) setDateValue('sub-billing', data.billingDate);
-            if (data.amount) document.getElementById('sub-amount').value = data.amount;
+            if (data.startDate) setDateValue('plat-start', data.startDate);
+            if (data.expiryDate) setDateValue('plat-expiry', data.expiryDate);
+            if (data.amount) document.getElementById('plat-amount').value = data.amount;
 
             if (data.paymentCycle) {
-                const cycleSelect = document.getElementById('sub-cycle');
-                for (const opt of cycleSelect.options) {
-                    if (opt.value.toLowerCase() === data.paymentCycle.toLowerCase()) {
-                        cycleSelect.value = opt.value;
-                        break;
+                const cycleSelect = document.getElementById('plat-cycle');
+                if (cycleSelect) {
+                    for (const opt of cycleSelect.options) {
+                        if (opt.value.toLowerCase() === data.paymentCycle.toLowerCase()) {
+                            cycleSelect.value = opt.value;
+                            break;
+                        }
                     }
                 }
 
-                // Also set subscription type based on cycle
-                const typeSelect = document.getElementById('sub-type');
-                for (const opt of typeSelect.options) {
-                    if (opt.value.toLowerCase() === data.paymentCycle.toLowerCase()) {
-                        typeSelect.value = opt.value;
-                        break;
+                const typeSelect = document.getElementById('plat-type');
+                if (typeSelect) {
+                    for (const opt of typeSelect.options) {
+                        if (opt.value.toLowerCase() === data.paymentCycle.toLowerCase()) {
+                            typeSelect.value = opt.value;
+                            break;
+                        }
                     }
                 }
             }
 
             // Highlight auto-filled fields
-            const fields = ['org-name', 'org-email', 'org-phone', 'sub-start', 'sub-expiry', 'sub-billing', 'sub-amount'];
+            const fields = ['org-name', 'org-email', 'org-phone', 'plat-start', 'plat-expiry', 'plat-amount'];
             for (const id of fields) {
                 const el = document.getElementById(id);
                 if (el && el.value) {
@@ -512,93 +521,167 @@
             document.getElementById('installments-section').style.display = schedule === 'Installments' ? 'block' : 'none';
         }
 
-        // Handle subscription type change
-        function onSubTypeChange() {
-            const type = document.getElementById('sub-type').value;
-            const customGroup = document.getElementById('custom-duration-group');
-            const planGroup = document.getElementById('plan-name-group');
-
-            if (type === 'Custom') {
-                customGroup.style.display = '';
-                planGroup.style.display = 'none';
-                // Don't auto-set dates yet — wait for months input
-            } else {
-                customGroup.style.display = 'none';
-                planGroup.style.display = '';
-                autoSetDates();
-            }
+        // Toggle subscription type sections
+        function toggleSubSection(type) {
+            const sectionMap = { platform: 'section-platform', projects: 'section-projects', users: 'section-users' };
+            const chkMap = { platform: 'chk-platform', projects: 'chk-projects', users: 'chk-users' };
+            const section = document.getElementById(sectionMap[type]);
+            const checked = document.getElementById(chkMap[type]).checked;
+            section.style.display = checked ? '' : 'none';
         }
 
-        // Auto-set dates based on subscription type
-        function autoSetDates() {
-            const type = document.getElementById('sub-type').value;
-            const startInput = document.getElementById('sub-start');
-            const expiryInput = document.getElementById('sub-expiry');
-            const billingInput = document.getElementById('sub-billing');
-            const cycleSelect = document.getElementById('sub-cycle');
+        // Platform type change (Annual/Monthly/Quarterly/Custom)
+        function onPlatTypeChange() {
+            const type = document.getElementById('plat-type').value;
+            document.getElementById('plat-custom-group').style.display = type === 'Custom' ? '' : 'none';
+            document.getElementById('plat-plan-group').style.display = type === 'Custom' ? 'none' : '';
+            if (type !== 'Custom') autoPlatDates();
+        }
 
+        // Auto-set platform dates
+        function autoPlatDates() {
+            const type = document.getElementById('plat-type').value;
+            const startInput = document.getElementById('plat-start');
             if (!type) return;
-
-            // Set start date to today if empty
-            if (!startInput.value) {
-                setDateValue('sub-start', Utils.formatDateApi(new Date()));
-            }
-
+            if (!startInput.value) setDateValue('plat-start', Utils.formatDateApi(new Date()));
             const startDate = new Date(startInput.value + 'T00:00:00');
-
-            // Calculate expiry based on type
             let expiryDate = new Date(startDate);
-            if (type === 'Annual') {
-                expiryDate.setFullYear(expiryDate.getFullYear() + 1);
-            } else if (type === 'Monthly') {
-                expiryDate.setMonth(expiryDate.getMonth() + 1);
-            } else if (type === 'Quarterly') {
-                expiryDate.setMonth(expiryDate.getMonth() + 3);
-            } else if (type === 'Custom') {
-                const months = parseInt(document.getElementById('sub-custom-months').value);
+
+            if (type === 'Annual') expiryDate.setFullYear(expiryDate.getFullYear() + 1);
+            else if (type === 'Monthly') expiryDate.setMonth(expiryDate.getMonth() + 1);
+            else if (type === 'Quarterly') expiryDate.setMonth(expiryDate.getMonth() + 3);
+            else if (type === 'Custom') {
+                const months = parseInt(document.getElementById('plat-custom-months').value);
                 if (!months || months <= 0) return;
                 expiryDate.setMonth(expiryDate.getMonth() + months);
-
-                // Show human-readable duration hint
                 const years = Math.floor(months / 12);
-                const remainingMonths = months % 12;
+                const rm = months % 12;
                 let hint = '';
                 if (years > 0) hint += years + (years === 1 ? ' year' : ' years');
-                if (years > 0 && remainingMonths > 0) hint += ' ';
-                if (remainingMonths > 0) hint += remainingMonths + (remainingMonths === 1 ? ' month' : ' months');
-                document.getElementById('custom-duration-hint').textContent = '= ' + hint + ' (until ' + Utils.formatDate(Utils.formatDateApi(expiryDate)) + ')';
+                if (years > 0 && rm > 0) hint += ' ';
+                if (rm > 0) hint += rm + (rm === 1 ? ' month' : ' months');
+                document.getElementById('plat-custom-hint').textContent = '= ' + hint;
             }
 
-            // Set expiry date
-            setDateValue('sub-expiry', Utils.formatDateApi(expiryDate));
+            setDateValue('plat-expiry', Utils.formatDateApi(expiryDate));
+            if (!document.getElementById('plat-cycle').value) document.getElementById('plat-cycle').value = type === 'Custom' ? 'Annual' : type;
+        }
 
-            // Set billing date = start date
-            if (!billingInput.value) {
-                setDateValue('sub-billing', startInput.value);
-            }
+        // ─── Dynamic Batch Management ────────────────────
+        let projectBatchCount = 0;
+        let userBatchCount = 0;
 
-            // Set payment cycle — for custom, pick the closest match
-            if (type === 'Custom') {
-                const months = parseInt(document.getElementById('sub-custom-months').value) || 12;
-                if (months <= 1) cycleSelect.value = 'Monthly';
-                else if (months <= 3) cycleSelect.value = 'Quarterly';
-                else cycleSelect.value = 'Annual';
-            } else {
-                cycleSelect.value = type;
-            }
+        function addProjectBatch() {
+            projectBatchCount++;
+            const n = projectBatchCount;
+            const container = document.getElementById('project-batches-container');
+            const div = document.createElement('div');
+            div.className = 'batch-card';
+            div.id = `proj-batch-${n}`;
+            div.innerHTML = `
+                <div class="batch-header">
+                    <span class="batch-title">Project Batch ${n}</span>
+                    <button type="button" class="btn btn-text btn-sm" onclick="this.closest('.batch-card').remove()" style="color:var(--error);">Remove</button>
+                </div>
+                <div class="form-group">
+                    <label>Project Names/Numbers *</label>
+                    <input type="text" class="proj-names" placeholder="e.g., Project Alpha, Project Beta or 1, 2, 3, 4, 5" />
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Start Date *</label>
+                        <input type="date" class="proj-start" />
+                    </div>
+                    <div class="form-group">
+                        <label>Expiry Date *</label>
+                        <input type="date" class="proj-expiry" />
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Amount</label>
+                        <input type="number" class="proj-amount" placeholder="e.g., 200000" min="0" />
+                    </div>
+                    <div class="form-group">
+                        <label>Payment Cycle</label>
+                        <select class="proj-cycle"><option value="">Select</option><option value="Monthly">Monthly</option><option value="Quarterly">Quarterly</option><option value="Annual">Annual</option></select>
+                    </div>
+                </div>
+            `;
+            container.appendChild(div);
+        }
 
-            // Highlight auto-filled display fields
-            ['sub-start-display', 'sub-expiry-display', 'sub-billing-display'].forEach(id => {
-                const el = document.getElementById(id);
-                if (el && el.value) {
-                    el.style.borderColor = '#16A34A';
-                    el.style.backgroundColor = '#F0FDF4';
-                    setTimeout(() => {
-                        el.style.borderColor = '';
-                        el.style.backgroundColor = '';
-                    }, 2000);
-                }
+        function addUserBatch() {
+            userBatchCount++;
+            const n = userBatchCount;
+            const container = document.getElementById('user-batches-container');
+            const div = document.createElement('div');
+            div.className = 'batch-card';
+            div.id = `user-batch-${n}`;
+            div.innerHTML = `
+                <div class="batch-header">
+                    <span class="batch-title">User Batch ${n}</span>
+                    <button type="button" class="btn btn-text btn-sm" onclick="this.closest('.batch-card').remove()" style="color:var(--error);">Remove</button>
+                </div>
+                <div class="form-group">
+                    <label>User Range/Description *</label>
+                    <input type="text" class="user-range" placeholder="e.g., 1-10 (10 users) or User Group A" />
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Start Date *</label>
+                        <input type="date" class="user-start" />
+                    </div>
+                    <div class="form-group">
+                        <label>Expiry Date *</label>
+                        <input type="date" class="user-expiry" />
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Amount</label>
+                        <input type="number" class="user-amount" placeholder="e.g., 100000" min="0" />
+                    </div>
+                    <div class="form-group">
+                        <label>Payment Cycle</label>
+                        <select class="user-cycle"><option value="">Select</option><option value="Monthly">Monthly</option><option value="Quarterly">Quarterly</option><option value="Annual">Annual</option></select>
+                    </div>
+                </div>
+            `;
+            container.appendChild(div);
+        }
+
+        // Collect all batch data from DOM
+        function collectProjectBatches() {
+            const batches = [];
+            const currency = document.getElementById('plat-currency').value;
+            document.querySelectorAll('#project-batches-container .batch-card').forEach(card => {
+                batches.push({
+                    projects: card.querySelector('.proj-names').value.trim(),
+                    startDate: card.querySelector('.proj-start').value,
+                    expiryDate: card.querySelector('.proj-expiry').value,
+                    amount: card.querySelector('.proj-amount').value ? Utils.getCurrencySymbol(currency) + card.querySelector('.proj-amount').value : '',
+                    currency: currency,
+                    paymentCycle: card.querySelector('.proj-cycle').value
+                });
             });
+            return batches;
+        }
+
+        function collectUserBatches() {
+            const batches = [];
+            const currency = document.getElementById('plat-currency').value;
+            document.querySelectorAll('#user-batches-container .batch-card').forEach(card => {
+                batches.push({
+                    users: card.querySelector('.user-range').value.trim(),
+                    startDate: card.querySelector('.user-start').value,
+                    expiryDate: card.querySelector('.user-expiry').value,
+                    amount: card.querySelector('.user-amount').value ? Utils.getCurrencySymbol(currency) + card.querySelector('.user-amount').value : '',
+                    currency: currency,
+                    paymentCycle: card.querySelector('.user-cycle').value
+                });
+            });
+            return batches;
         }
 
         // Priority pill selection
@@ -635,34 +718,22 @@
                 valid = false;
             }
 
-            // Subscription type
-            const subTypeVal = document.getElementById('sub-type').value;
-            if (!subTypeVal) {
-                document.getElementById('sub-type-error').textContent = 'Subscription type is required.';
+            // At least one subscription type must be checked
+            const hasPlatform = document.getElementById('chk-platform').checked;
+            const hasProjects = document.getElementById('chk-projects').checked;
+            const hasUsers = document.getElementById('chk-users').checked;
+
+            if (!hasPlatform && !hasProjects && !hasUsers) {
+                document.getElementById('sub-type-error').textContent = 'Select at least one subscription type.';
                 valid = false;
-            } else if (subTypeVal === 'Custom') {
-                const customMonths = parseInt(document.getElementById('sub-custom-months').value);
-                if (!customMonths || customMonths <= 0) {
-                    document.getElementById('sub-type-error').textContent = 'Please enter duration in months.';
+            }
+
+            // Validate platform dates if checked
+            if (hasPlatform) {
+                if (!document.getElementById('plat-start').value || !document.getElementById('plat-expiry').value) {
+                    document.getElementById('sub-type-error').textContent = 'Platform subscription requires start and expiry dates.';
                     valid = false;
                 }
-            }
-
-            // Start date
-            const startDate = document.getElementById('sub-start').value;
-            if (!startDate) {
-                document.getElementById('sub-start-error').textContent = 'Start date is required.';
-                valid = false;
-            }
-
-            // Expiry date
-            const expiryDate = document.getElementById('sub-expiry').value;
-            if (!expiryDate) {
-                document.getElementById('sub-expiry-error').textContent = 'Expiry date is required.';
-                valid = false;
-            } else if (startDate && !Utils.isExpiryAfterStart(startDate, expiryDate)) {
-                document.getElementById('sub-expiry-error').textContent = 'Expiry date must be after start date.';
-                valid = false;
             }
 
             return valid;
@@ -699,31 +770,63 @@
                     licenses: document.getElementById('org-licenses').value
                 };
 
-                const rawType = document.getElementById('sub-type').value;
-                const customMonths = document.getElementById('sub-custom-months').value;
+                // Build subscription data (3-tier model)
+                const currency = document.getElementById('plat-currency').value;
+                const currSym = Utils.getCurrencySymbol(currency);
+                const subTypes = { platform: null, projectBatches: [], userBatches: [] };
+                let earliestExpiry = null;
+                const typeLabels = [];
 
-                const subData = {
-                    type: rawType === 'Custom' ? 'Custom' : rawType,
-                    customDuration: rawType === 'Custom' ? customMonths : '',
-                    planName: document.getElementById('sub-plan').value.trim(),
-                    startDate: document.getElementById('sub-start').value,
-                    expiryDate: document.getElementById('sub-expiry').value,
-                    billingDate: document.getElementById('sub-billing').value || document.getElementById('sub-start').value,
-                    paymentCycle: document.getElementById('sub-cycle').value || document.getElementById('sub-type').value,
-                    amount: document.getElementById('sub-amount').value ? Utils.getCurrencySymbol(document.getElementById('sub-currency').value) + document.getElementById('sub-amount').value : '',
-                    currency: document.getElementById('sub-currency').value,
-                    autoRenew: 'No'
-                };
+                // Platform
+                if (document.getElementById('chk-platform').checked) {
+                    const platType = document.getElementById('plat-type').value;
+                    const platCustomMonths = document.getElementById('plat-custom-months').value;
+                    subTypes.platform = {
+                        type: platType === 'Custom' ? 'Custom' : platType,
+                        customDuration: platType === 'Custom' ? platCustomMonths : '',
+                        planName: document.getElementById('plat-plan').value.trim(),
+                        startDate: document.getElementById('plat-start').value,
+                        expiryDate: document.getElementById('plat-expiry').value,
+                        billingDate: document.getElementById('plat-start').value,
+                        paymentCycle: document.getElementById('plat-cycle').value || platType,
+                        amount: document.getElementById('plat-amount').value ? currSym + document.getElementById('plat-amount').value : '',
+                        currency: currency,
+                        autoRenew: 'No'
+                    };
+                    earliestExpiry = subTypes.platform.expiryDate;
+                    typeLabels.push(subTypes.platform.type === 'Custom' ? 'Custom' : subTypes.platform.type);
+                }
+
+                // Project batches
+                if (document.getElementById('chk-projects').checked) {
+                    subTypes.projectBatches = collectProjectBatches();
+                    for (const b of subTypes.projectBatches) {
+                        if (b.expiryDate && (!earliestExpiry || new Date(b.expiryDate) < new Date(earliestExpiry))) {
+                            earliestExpiry = b.expiryDate;
+                        }
+                    }
+                }
+
+                // User batches
+                if (document.getElementById('chk-users').checked) {
+                    subTypes.userBatches = collectUserBatches();
+                    for (const b of subTypes.userBatches) {
+                        if (b.expiryDate && (!earliestExpiry || new Date(b.expiryDate) < new Date(earliestExpiry))) {
+                            earliestExpiry = b.expiryDate;
+                        }
+                    }
+                }
 
                 const contractVal = document.getElementById('pay-contract').value;
                 const paymentData = {
-                    contractValue: contractVal ? Utils.getCurrencySymbol(document.getElementById('sub-currency').value) + contractVal : '',
+                    contractValue: contractVal ? currSym + contractVal : '',
                     schedule: document.getElementById('pay-schedule').value,
                     installments: document.getElementById('pay-installments').value,
                     firstPaymentDate: document.getElementById('pay-first-date').value,
-                    totalPaid: Utils.getCurrencySymbol(document.getElementById('sub-currency').value) + '0',
-                    remaining: contractVal ? Utils.getCurrencySymbol(document.getElementById('sub-currency').value) + contractVal : '',
-                    status: 'Due'
+                    totalPaid: currSym + '0',
+                    remaining: contractVal ? currSym + contractVal : '',
+                    status: 'Due',
+                    currency: currency
                 };
 
                 const alertData = {
@@ -734,22 +837,28 @@
 
                 const notes = document.getElementById('org-notes').value.trim();
 
-                // Build issue body
-                const body = Utils.buildIssueBody(orgData, [subData], paymentData, alertData, notes);
+                // Build issue body (new 3-tier format)
+                const body = Utils.buildIssueBody(orgData, subTypes, paymentData, alertData, notes);
 
                 // Determine labels
-                const status = Utils.getStatus(subData.expiryDate);
+                const status = earliestExpiry ? Utils.getStatus(earliestExpiry) : 'active';
                 const statusLabel = Utils.getStatusLabel(status);
                 const priority = document.getElementById('sub-priority').value;
-                const labels = [statusLabel, subData.type, priority];
+                const labels = [statusLabel, priority];
+                // Add type labels
+                if (subTypes.platform) labels.push(subTypes.platform.type === 'Custom' ? 'Custom' : subTypes.platform.type);
+                if (subTypes.projectBatches.length > 0) labels.push('Projects');
+                if (subTypes.userBatches.length > 0) labels.push('Users');
 
-                // Get or create milestone
-                const milestoneName = Utils.getMilestoneName(subData.expiryDate);
+                // Get or create milestone based on earliest expiry
                 let milestoneNumber = null;
-                try {
-                    milestoneNumber = await GitHubAPI.getOrCreateMilestone(milestoneName);
-                } catch (e) {
-                    console.warn('Could not create milestone:', e);
+                if (earliestExpiry) {
+                    const milestoneName = Utils.getMilestoneName(earliestExpiry);
+                    try {
+                        milestoneNumber = await GitHubAPI.getOrCreateMilestone(milestoneName);
+                    } catch (e) {
+                        console.warn('Could not create milestone:', e);
+                    }
                 }
 
                 // Determine assignees
@@ -820,11 +929,20 @@
             uploadedFile = null;
             document.getElementById('extract-message').style.display = 'none';
 
-            // Reset custom duration
-            document.getElementById('custom-duration-group').style.display = 'none';
-            document.getElementById('plan-name-group').style.display = '';
-            document.getElementById('custom-duration-hint').textContent = '';
+            // Reset subscription sections
+            document.getElementById('chk-platform').checked = true;
+            document.getElementById('chk-projects').checked = false;
+            document.getElementById('chk-users').checked = false;
+            document.getElementById('section-platform').style.display = '';
+            document.getElementById('section-projects').style.display = 'none';
+            document.getElementById('section-users').style.display = 'none';
+            document.getElementById('plat-custom-group').style.display = 'none';
+            document.getElementById('plat-plan-group').style.display = '';
+            document.getElementById('project-batches-container').innerHTML = '';
+            document.getElementById('user-batches-container').innerHTML = '';
             document.getElementById('installments-section').style.display = 'none';
+            projectBatchCount = 0;
+            userBatchCount = 0;
 
             // Clear errors
             document.querySelectorAll('.form-error').forEach(el => el.textContent = '');
@@ -893,6 +1011,74 @@
         .extract-success { background: var(--success-bg); color: var(--success); }
         .extract-warning { background: var(--warning-bg); color: #B45309; }
         .extract-error { background: var(--error-bg); color: var(--error); }
+
+        /* Subscription type checkboxes */
+        .sub-type-checks {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            margin-bottom: 8px;
+        }
+        .check-label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            padding: 10px 16px;
+            border: 1.5px solid var(--border);
+            border-radius: var(--radius);
+            transition: all 0.15s;
+        }
+        .check-label:has(input:checked) {
+            border-color: var(--brand);
+            background: var(--brand-light);
+            color: var(--brand);
+        }
+        .check-label input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            accent-color: var(--brand);
+        }
+
+        /* Subscription sections */
+        .sub-section {
+            margin-top: 16px;
+            padding: 20px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            background: var(--bg);
+        }
+        .sub-section-title {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--brand);
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* Batch cards */
+        .batch-card {
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 16px;
+            margin-bottom: 12px;
+            background: var(--bg-white);
+        }
+        .batch-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        .batch-title {
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--text);
+        }
 
         .date-input-wrapper {
             position: relative;

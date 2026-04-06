@@ -121,19 +121,27 @@
                 const data = await GitHubAPI.getOrganizations({ first: 100 });
                 allIssues = data.issues.map(issue => {
                     const parsed = Utils.parseIssueBody(issue.body);
-                    const sub = parsed.subscriptions[0] || {};
+                    const plat = parsed.platform || parsed.subscriptions[0] || {};
                     const payment = parsed.payment || {};
                     const payHistory = parsed.paymentHistory || [];
-                    const expiryDate = Utils.getEarliestExpiry(parsed.subscriptions);
+                    const expiryDate = Utils.getEarliestExpiry(parsed);
                     const paySummary = Utils.calculatePaymentSummary(payment, payHistory);
+
+                    // Build type summary
+                    const typeParts = [];
+                    if (parsed.platform) typeParts.push(plat['Subscription Type'] || 'Platform');
+                    if (parsed.projectBatches && parsed.projectBatches.length > 0) typeParts.push('Proj(' + parsed.projectBatches.length + ')');
+                    if (parsed.userBatches && parsed.userBatches.length > 0) typeParts.push('Users(' + parsed.userBatches.length + ')');
+                    const typeSummary = typeParts.join('+') || (plat['Subscription Type'] || '—');
+
                     return {
                         ...issue,
                         parsed,
-                        sub,
+                        plat,
                         expiryDate,
-                        startDate: sub['Start Date'] || '',
+                        startDate: plat['Start Date'] || '',
                         days: expiryDate ? Utils.remainingDays(expiryDate) : 9999,
-                        type: sub['Subscription Type'] || '—',
+                        type: typeSummary,
                         manager: parsed.organization['Account Manager'] || '—',
                         statusKey: expiryDate ? Utils.getStatus(expiryDate) : 'active',
                         contractValue: paySummary.contractValue,
