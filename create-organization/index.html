@@ -602,23 +602,28 @@
             document.getElementById('sec-contact-toggle').style.display = '';
         }
 
-        // Update contract value hint — shows sum of all subscription amounts
+        // Update contract value hint — shows sum of all CHECKED subscription amounts
         function updateContractHint() {
             let subtotal = 0;
 
-            // Platform amount
-            const platAmt = parseFloat(document.getElementById('plat-amount').value) || 0;
-            subtotal += platAmt;
+            // Platform amount (only if checked)
+            if (document.getElementById('chk-platform').checked) {
+                subtotal += parseFloat(document.getElementById('plat-amount').value) || 0;
+            }
 
-            // Project batch amounts
-            document.querySelectorAll('.proj-amount').forEach(el => {
-                subtotal += parseFloat(el.value) || 0;
-            });
+            // Project batch amounts (only if checked)
+            if (document.getElementById('chk-projects').checked) {
+                document.querySelectorAll('.proj-amount').forEach(el => {
+                    subtotal += parseFloat(el.value) || 0;
+                });
+            }
 
-            // User batch amounts
-            document.querySelectorAll('.user-amount').forEach(el => {
-                subtotal += parseFloat(el.value) || 0;
-            });
+            // User batch amounts (only if checked)
+            if (document.getElementById('chk-users').checked) {
+                document.querySelectorAll('.user-amount').forEach(el => {
+                    subtotal += parseFloat(el.value) || 0;
+                });
+            }
 
             const hint = document.getElementById('pay-contract-hint');
             if (subtotal > 0) {
@@ -641,6 +646,7 @@
             const section = document.getElementById(sectionMap[type]);
             const checked = document.getElementById(chkMap[type]).checked;
             section.style.display = checked ? '' : 'none';
+            updateContractHint();
         }
 
         // Platform type change (Annual/Monthly/Quarterly/Custom)
@@ -694,7 +700,7 @@
             div.innerHTML = `
                 <div class="batch-header">
                     <span class="batch-title">Project Batch ${n}</span>
-                    <button type="button" class="btn btn-text btn-sm" onclick="this.closest('.batch-card').remove()" style="color:var(--error);">Remove</button>
+                    <button type="button" class="btn btn-text btn-sm" onclick="this.closest('.batch-card').remove(); updateContractHint()" style="color:var(--error);">Remove</button>
                 </div>
                 <div class="form-group">
                     <label>Project Names/Numbers *</label>
@@ -738,7 +744,7 @@
             div.innerHTML = `
                 <div class="batch-header">
                     <span class="batch-title">User Batch ${n}</span>
-                    <button type="button" class="btn btn-text btn-sm" onclick="this.closest('.batch-card').remove()" style="color:var(--error);">Remove</button>
+                    <button type="button" class="btn btn-text btn-sm" onclick="this.closest('.batch-card').remove(); updateContractHint()" style="color:var(--error);">Remove</button>
                 </div>
                 <div class="form-group">
                     <label>User Range/Description *</label>
