@@ -439,7 +439,7 @@
             document.getElementById('add-payment-form').style.display = 'none';
         }
 
-        // Submit payment — adds a comment and updates issue body
+        // Submit payment — updates installment row in issue body + recalculates totals + audit comment
         async function submitPayment() {
             const date = document.getElementById('add-pay-date').value;
             const amount = document.getElementById('add-pay-amount').value;
@@ -451,15 +451,136 @@
                 return;
             }
 
+            const paidAmount = parseFloat(amount);
+            if (isNaN(paidAmount) || paidAmount <= 0) {
+                Toast.show('Please enter a valid amount.', 'error');
+                return;
+            }
+
             try {
                 Toast.show('Recording payment...', 'info');
 
-                // Add payment comment
+                const org = currentParsed.organization;
+                const subs = currentParsed.subscriptions;
+                const payment = currentParsed.payment || {};
+                const payHistory = [...(currentParsed.paymentHistory || [])];
+                const alerts = currentParsed.alerts;
+                const notes = currentParsed.notes;
+
+                // Find the first "Due" installment and update it to "Paid"
+                let updatedExisting = false;
+                for (const p of payHistory) {
+                    if (p.status === 'Due') {
+                        p.date = date;
+                        p.amount = '$' + paidAmount.toLocaleString();
+                        p.method = method;
+                        p.receipt = receipt;
+                        p.status = 'Paid';
+                        updatedExisting = true;
+                        break;
+                    }
+                }
+
+                // If no "Due" installment found (one-time or all paid), add a new row
+                if (!updatedExisting) {
+                    payHistory.push({
+                        number: String(payHistory.length + 1),
+                        date: date,
+                        amount: '$' + paidAmount.toLocaleString(),
+                        method: method,
+                        receipt: receipt,
+                        status: 'Paid'
+                    });
+                }
+
+                // Recalculate totals from history
+                const contractValue = parseFloat((payment['Contract Value'] || '0').replace(/[^0-9.]/g, '')) || 0;
+                let totalPaid = 0;
+                for (const p of payHistory) {
+                    if (p.status === 'Paid') {
+                        totalPaid += parseFloat((p.amount || '0').replace(/[^0-9.]/g, '')) || 0;
+                    }
+                }
+                const remaining = Math.max(0, contractValue - totalPaid);
+
+                // Determine payment status
+                let payStatus = 'Due';
+                if (contractValue > 0 && totalPaid >= contractValue) payStatus = 'Fully Paid';
+                else if (totalPaid > 0) payStatus = 'Partially Paid';
+
+                // Check for overdue — only "Due" rows with past dates
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                for (const p of payHistory) {
+                    if (p.status === 'Due' && p.date && p.date !== '—') {
+                        const dueDate = new Date(p.date + 'T00:00:00');
+                        if (dueDate < today) {
+                            payStatus = 'Overdue';
+                            break;
+                        }
+                    }
+                }
+
+                // Rebuild issue body
+                const orgData = {
+                    name: org['Organization Name'] || currentIssue.title,
+                    email: org['Contact Email'] || '', phone: org['Phone'] || '',
+                    address: org['Address'] || '', orgType: org['Organization Type'] || '',
+                    accountManager: org['Account Manager'] || '',
+                    contactPerson: org['Contact Person'] || '', designation: org['Designation'] || '',
+                    secondaryContact: org['Secondary Contact'] || '', secondaryEmail: org['Secondary Email'] || '',
+                    secondaryPhone: org['Secondary Phone'] || '', gstId: org['GST/Tax ID'] || '',
+                    dealSource: org['Deal Source'] || '', licenses: org['Number of Licenses'] || ''
+                };
+
+                const subsData = subs.map(s => ({
+                    type: s['Subscription Type'] || '', customDuration: s['Custom Duration'] ? s['Custom Duration'].replace(' months', '') : '',
+                    planName: s['Plan Name'] || '', startDate: s['Start Date'] || '', expiryDate: s['Expiry Date'] || '',
+                    billingDate: s['Billing Date'] || '', paymentCycle: s['Payment Cycle'] || '',
+                    amount: s['Amount'] || '', currency: s['Currency'] || 'USD', autoRenew: s['Auto Renew'] || 'No'
+                }));
+
+                const paymentData = {
+                    contractValue: payment['Contract Value'] || '',
+                    schedule: payment['Payment Schedule'] || 'One-time',
+                    totalPaid: '$' + totalPaid.toFixed(2).replace(/\.00$/, ''),
+                    remaining: '$' + remaining.toFixed(2).replace(/\.00$/, ''),
+                    status: payStatus
+                };
+
+                const alertData = {
+                    enabled: alerts['Alerts Enabled'] || 'Yes',
+                    daysBefore: alerts['Alert Days Before'] || '60',
+                    recipients: alerts['Alert Recipients'] || ''
+                };
+
+                // Build body without auto-generated history
+                let newBody = Utils.buildIssueBody(orgData, subsData, paymentData, alertData, notes);
+
+                // Remove auto-generated Payment History (from buildIssueBody installment generation)
+                newBody = newBody.replace(/\n## Payment History\n[\s\S]*?(?=\n## |$)/, '');
+
+                // Insert actual payment history before Alert Settings
+                const historySection = `\n## Payment History\n| # | Date | Amount | Method | Receipt | Status |\n|---|------|--------|--------|---------|--------|\n` +
+                    payHistory.map(p => `| ${p.number} | ${p.date} | ${p.amount} | ${p.method} | ${p.receipt} | ${p.status} |`).join('\n') + '\n';
+
+                const alertIdx = newBody.indexOf('\n## Alert Settings');
+                if (alertIdx !== -1) {
+                    newBody = newBody.slice(0, alertIdx) + historySection + newBody.slice(alertIdx);
+                } else {
+                    newBody += historySection;
+                }
+
+                // Update issue body
+                await GitHubAPI.updateOrganization(currentIssue.number, { body: newBody });
+
+                // Add audit comment
                 const userName = Auth.getUserName();
-                const commentBody = `💰 **Payment recorded by ${userName}** — ${Utils.formatDate(new Date().toISOString())}\n\n| Field | Value |\n|-------|-------|\n| Date | ${date} |\n| Amount | $${parseFloat(amount).toLocaleString()} |\n| Method | ${method} |\n| Receipt | ${receipt} |`;
+                const commentBody = `💰 **Payment recorded by ${userName}** — ${Utils.formatDate(new Date().toISOString())}\n\n| Field | Value |\n|-------|-------|\n| Date | ${Utils.formatDate(date)} |\n| Amount | $${paidAmount.toLocaleString()} |\n| Method | ${method} |\n| Receipt | ${receipt} |\n\n**Updated Totals:** Paid: $${totalPaid.toLocaleString()} | Remaining: $${remaining.toLocaleString()} | Status: ${payStatus}`;
 
                 await GitHubAPI.addComment(currentIssue.number, commentBody);
-                Toast.show('Payment recorded!', 'success');
+
+                Toast.show(`Payment of $${paidAmount.toLocaleString()} recorded! Remaining: $${remaining.toLocaleString()}`, 'success');
                 hideAddPayment();
                 await loadOrganization();
             } catch (error) {
