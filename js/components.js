@@ -152,7 +152,6 @@ const Nav = {
             { id: 'dashboard', label: 'Dashboard', icon: '📊', url: `${CONFIG.baseUrl}/` },
             { id: 'organizations', label: 'Organizations', icon: '🏢', url: `${CONFIG.baseUrl}/organizations/` },
             { id: 'create', label: 'Create', icon: '➕', url: `${CONFIG.baseUrl}/create-organization/` },
-            { id: 'bulk-upload', label: 'Bulk Upload', icon: '📁', url: `${CONFIG.baseUrl}/bulk-upload/` },
             { id: 'settings', label: 'Settings', icon: '⚙️', url: `${CONFIG.baseUrl}/settings/` }
         ];
 
