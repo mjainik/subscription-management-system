@@ -831,6 +831,9 @@
                     const subTypes = buildSubTypesFromParsed(currentParsed);
                     const targetBatches = batchType === 'project' ? subTypes.projectBatches : subTypes.userBatches;
                     targetBatches.splice(index, 1);
+                    // Also splice the corresponding payment history
+                    const targetHistories = batchType === 'project' ? subTypes.projectPayHistories : subTypes.userPayHistories;
+                    if (targetHistories && targetHistories.length > index) targetHistories.splice(index, 1);
 
                     const orgData = buildOrgDataFromParsed(currentParsed, currentIssue);
                     const plat = currentParsed.platform || currentParsed.subscriptions[0] || {};
@@ -927,8 +930,22 @@
 
                 // Rebuild with new batch added
                 const subTypes = buildSubTypesFromParsed(currentParsed);
-                if (isProject) subTypes.projectBatches.push(newBatch);
-                else subTypes.userBatches.push(newBatch);
+                if (isProject) {
+                    subTypes.projectBatches.push(newBatch);
+                    // Generate installments for the new batch
+                    if (newBatch.amount && newBatch.startDate && newBatch.expiryDate && newBatch.paymentCycle) {
+                        subTypes.projectPayHistories.push(Utils.generateInstallments(newBatch.amount, newBatch.startDate, newBatch.expiryDate, newBatch.paymentCycle));
+                    } else {
+                        subTypes.projectPayHistories.push([]);
+                    }
+                } else {
+                    subTypes.userBatches.push(newBatch);
+                    if (newBatch.amount && newBatch.startDate && newBatch.expiryDate && newBatch.paymentCycle) {
+                        subTypes.userPayHistories.push(Utils.generateInstallments(newBatch.amount, newBatch.startDate, newBatch.expiryDate, newBatch.paymentCycle));
+                    } else {
+                        subTypes.userPayHistories.push([]);
+                    }
+                }
 
                 const orgData = buildOrgDataFromParsed(currentParsed, currentIssue);
                 const paymentData = buildPaymentDataFromParsed(currentParsed, plat);
