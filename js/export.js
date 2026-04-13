@@ -31,7 +31,7 @@ const Export = {
             const days = expiryDate ? Utils.remainingDays(expiryDate) : '';
             const statusKey = expiryDate ? Utils.getStatus(expiryDate) : '';
             const statusLabel = statusKey ? CONFIG.labels.status[statusKey] : '';
-            const paySummary = Utils.calculatePaymentSummary(payment, parsed.paymentHistory || []);
+            const paySummary = Utils.calculatePaymentSummary(payment, parsed.paymentHistory || [], parsed);
 
             // Subscription types summary
             const subTypeParts = [];
@@ -143,7 +143,7 @@ const Export = {
         const alerts = parsed.alerts;
         const payment = parsed.payment || {};
         const payHistory = parsed.paymentHistory || [];
-        const paySummary = Utils.calculatePaymentSummary(payment, payHistory);
+        const paySummary = Utils.calculatePaymentSummary(payment, payHistory, parsed);
         const plat = parsed.platform || parsed.subscriptions[0] || {};
 
         const tdStyle = 'padding: 8px; border: 1px solid #E5E7EB;';

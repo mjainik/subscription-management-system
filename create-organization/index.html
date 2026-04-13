@@ -275,34 +275,15 @@
                             <button type="button" class="btn btn-secondary btn-sm" onclick="addUserBatch()">+ Add User Batch</button>
                         </div>
 
-                        <!-- Payment Details -->
+                        <!-- Payment Details (Global — Contract Value + ad-hoc) -->
                         <h3 class="section-title" style="margin-top: 24px;">Payment Details</h3>
+                        <p style="color:var(--text-secondary);font-size:13px;margin-bottom:12px;">Payment installments are auto-generated per subscription based on Payment Cycle + Amount. Enter the overall Contract Value below (may include tax/extras).</p>
                         <div class="form-row">
                             <div class="form-group">
-                                <label for="pay-contract">Contract Value *</label>
-                                <input type="number" id="pay-contract" placeholder="e.g., 531000 (total with tax)" min="0" step="0.01" required />
+                                <label for="pay-contract">Contract Value</label>
+                                <input type="number" id="pay-contract" placeholder="e.g., 531000 (total with tax)" min="0" step="0.01" />
                                 <small id="pay-contract-hint" style="color:var(--text-muted);"></small>
                                 <div class="form-error" id="pay-contract-error"></div>
-                            </div>
-                            <div class="form-group">
-                                <label for="pay-schedule">Payment Schedule</label>
-                                <select id="pay-schedule" onchange="toggleInstallments()">
-                                    <option value="One-time">One-time</option>
-                                    <option value="Installments">Installments</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div id="installments-section" style="display:none;">
-                            <div class="form-row">
-                                <div class="form-group">
-                                    <label for="pay-installments">Number of Installments</label>
-                                    <input type="number" id="pay-installments" placeholder="e.g., 4" min="2" max="60" value="4" />
-                                </div>
-                                <div class="form-group">
-                                    <label for="pay-first-date">First Payment Date</label>
-                                    <div class="date-input-wrapper">
-                                        <input type="text" id="pay-first-date-display" class="date-display" placeholder="DD-MMM-YYYY" readonly />
-                                        <input type="date" id="pay-first-date" onchange="onDateChange('pay-first-date')" class="date-hidden" />
                                     </div>
                                 </div>
                             </div>
@@ -633,11 +614,7 @@
             }
         }
 
-        // Toggle installments section
-        function toggleInstallments() {
-            const schedule = document.getElementById('pay-schedule').value;
-            document.getElementById('installments-section').style.display = schedule === 'Installments' ? 'block' : 'none';
-        }
+        // (Installments are now auto-generated per subscription — no global toggle needed)
 
         // Toggle subscription type sections
         function toggleSubSection(type) {
@@ -908,38 +885,62 @@
                 if (document.getElementById('chk-platform').checked) {
                     const platType = document.getElementById('plat-type').value;
                     const platCustomMonths = document.getElementById('plat-custom-months').value;
+                    const platCycle = getCycleValue(document.getElementById('plat-cycle')) || platType;
+                    const platStart = document.getElementById('plat-start').value;
+                    const platExpiry = document.getElementById('plat-expiry').value;
+                    const platAmount = document.getElementById('plat-amount').value;
+
                     subTypes.platform = {
                         type: platType === 'Custom' ? 'Custom' : platType,
                         customDuration: platType === 'Custom' ? platCustomMonths : '',
                         planName: document.getElementById('plat-plan').value.trim(),
-                        startDate: document.getElementById('plat-start').value,
-                        expiryDate: document.getElementById('plat-expiry').value,
-                        billingDate: document.getElementById('plat-start').value,
-                        paymentCycle: getCycleValue(document.getElementById('plat-cycle')) || platType,
-                        amount: document.getElementById('plat-amount').value ? currSym + document.getElementById('plat-amount').value : '',
+                        startDate: platStart,
+                        expiryDate: platExpiry,
+                        billingDate: platStart,
+                        paymentCycle: platCycle,
+                        amount: platAmount ? currSym + platAmount : '',
                         currency: currency,
                         autoRenew: 'No'
                     };
-                    earliestExpiry = subTypes.platform.expiryDate;
+
+                    // Auto-generate platform payment history from cycle
+                    if (platAmount && platStart && platExpiry && platCycle) {
+                        subTypes.platformPayHistory = Utils.generateInstallments(platAmount, platStart, platExpiry, platCycle);
+                    }
+
+                    earliestExpiry = platExpiry;
                     typeLabels.push(subTypes.platform.type === 'Custom' ? 'Custom' : subTypes.platform.type);
                 }
 
-                // Project batches
+                // Project batches + per-batch payment histories
+                subTypes.projectPayHistories = [];
                 if (document.getElementById('chk-projects').checked) {
                     subTypes.projectBatches = collectProjectBatches();
                     for (const b of subTypes.projectBatches) {
                         if (b.expiryDate && (!earliestExpiry || new Date(b.expiryDate) < new Date(earliestExpiry))) {
                             earliestExpiry = b.expiryDate;
                         }
+                        // Auto-generate payment history per batch
+                        if (b.amount && b.startDate && b.expiryDate && b.paymentCycle) {
+                            subTypes.projectPayHistories.push(Utils.generateInstallments(b.amount, b.startDate, b.expiryDate, b.paymentCycle));
+                        } else {
+                            subTypes.projectPayHistories.push([]);
+                        }
                     }
                 }
 
-                // User batches
+                // User batches + per-batch payment histories
+                subTypes.userPayHistories = [];
                 if (document.getElementById('chk-users').checked) {
                     subTypes.userBatches = collectUserBatches();
                     for (const b of subTypes.userBatches) {
                         if (b.expiryDate && (!earliestExpiry || new Date(b.expiryDate) < new Date(earliestExpiry))) {
                             earliestExpiry = b.expiryDate;
+                        }
+                        if (b.amount && b.startDate && b.expiryDate && b.paymentCycle) {
+                            subTypes.userPayHistories.push(Utils.generateInstallments(b.amount, b.startDate, b.expiryDate, b.paymentCycle));
+                        } else {
+                            subTypes.userPayHistories.push([]);
                         }
                     }
                 }
@@ -947,11 +948,7 @@
                 const contractVal = document.getElementById('pay-contract').value;
                 const paymentData = {
                     contractValue: contractVal ? currSym + contractVal : '',
-                    schedule: document.getElementById('pay-schedule').value,
-                    installments: document.getElementById('pay-installments').value,
-                    firstPaymentDate: document.getElementById('pay-first-date').value,
-                    expiryDate: earliestExpiry || '',
-                    totalPaid: currSym + '0',
+                    totalPaid: '0',
                     remaining: contractVal ? currSym + contractVal : '',
                     status: 'Due',
                     currency: currency
@@ -1068,7 +1065,7 @@
             document.getElementById('plat-plan-group').style.display = '';
             document.getElementById('project-batches-container').innerHTML = '';
             document.getElementById('user-batches-container').innerHTML = '';
-            document.getElementById('installments-section').style.display = 'none';
+            // (no installments section to reset — per-sub now)
             projectBatchCount = 0;
             userBatchCount = 0;
 

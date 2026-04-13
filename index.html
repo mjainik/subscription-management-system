@@ -97,7 +97,7 @@
                 const payment = parsed.payment || {};
                 const payHistory = parsed.paymentHistory || [];
                 const expiryDate = Utils.getEarliestExpiry(parsed);
-                const paySummary = Utils.calculatePaymentSummary(payment, payHistory);
+                const paySummary = Utils.calculatePaymentSummary(payment, payHistory, parsed);
 
                 // Get soonest expiring item for hover label
                 const soonestItem = Utils.getSoonestExpiringItem(parsed);

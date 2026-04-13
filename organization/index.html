@@ -72,13 +72,16 @@
             const userBatches = currentParsed.userBatches || [];
             const legacySubs = currentParsed.subscriptions || [];
             const payment = currentParsed.payment || {};
+            const platPayHistory = currentParsed.platformPayHistory || [];
+            const projPayHistories = currentParsed.projectPayHistories || [];
+            const userPayHistories = currentParsed.userPayHistories || [];
             const paymentHistory = currentParsed.paymentHistory || [];
             const notes = currentParsed.notes;
             const expiryDate = Utils.getEarliestExpiry(currentParsed);
             const allExpiryItems = Utils.getAllExpiryItems(currentParsed);
             const hasRenewal = currentIssue.labels.nodes.some(l => l.name === CONFIG.labels.status.renewalInProgress);
             const days = expiryDate ? Utils.remainingDays(expiryDate) : null;
-            const paySummary = Utils.calculatePaymentSummary(payment, paymentHistory);
+            const paySummary = Utils.calculatePaymentSummary(payment, paymentHistory, currentParsed);
 
             const statusHtml = hasRenewal
                 ? `<span class="badge badge-info">${CONFIG.labels.status.renewalInProgress}</span>`
@@ -229,10 +232,15 @@
                         ${userBatches.length === 0 ? `<button class="btn btn-secondary btn-sm" onclick="showAddBatch('user')">+ Add User Batch</button>` : ''}
                     </div>` : ''}
 
-                    <!-- Payment Summary -->
+                    <!-- Per-Subscription Payment Tracking -->
+                    ${renderPayHistoryCard('Platform', plat ? plat['Amount'] : null, platPayHistory, 'platform', -1)}
+                    ${projectBatches.map((b, i) => renderPayHistoryCard('Project Batch ' + (i+1) + ': ' + (b['Projects'] || ''), b['Amount'], projPayHistories[i] || [], 'project', i)).join('')}
+                    ${userBatches.map((b, i) => renderPayHistoryCard('User Batch ' + (i+1) + ': ' + (b['Users'] || ''), b['Amount'], userPayHistories[i] || [], 'user', i)).join('')}
+
+                    <!-- Overall Payment Summary -->
                     <div class="card">
                         <div class="card-header">
-                            <h3 class="card-title">Payment Summary</h3>
+                            <h3 class="card-title">Overall Payment Summary</h3>
                             ${Utils.paymentStatusBadge(paySummary.status)}
                         </div>
                         <div class="payment-overview">
@@ -249,60 +257,14 @@
                                 <div class="payment-stat-label">Remaining</div>
                             </div>
                         </div>
-                        ${paySummary.contractValue > 0 ? `
+                        ${paySummary.contractValue > 0 || paySummary.totalPaid > 0 ? `
                         <div class="payment-progress-container">
                             <div class="payment-progress-bar" style="width:${paySummary.percentage}%"></div>
                         </div>
-                        <div class="payment-progress-text">${paySummary.percentage}% Collected</div>
-                        ` : ''}
-                        ${(() => {
-                            let subTotal = 0;
-                            if (plat) subTotal += parseFloat((plat['Amount'] || '0').replace(/[^0-9.]/g, '')) || 0;
-                            (projectBatches || []).forEach(b => subTotal += parseFloat((b['Amount'] || '0').replace(/[^0-9.]/g, '')) || 0);
-                            (userBatches || []).forEach(b => subTotal += parseFloat((b['Amount'] || '0').replace(/[^0-9.]/g, '')) || 0);
-                            return subTotal > 0 ? `<div style="margin-top:8px;font-size:12px;color:var(--text-muted);text-align:center;">Subscription subtotal: ${subTotal.toLocaleString()} (before tax/discounts)</div>` : '';
-                        })()}
-                    </div>
-
-                    <!-- Payment History -->
-                    <div class="card">
-                        <div class="card-header">
-                            <h3 class="card-title">Payment History</h3>
+                        <div class="payment-progress-text">${paySummary.percentage}% Collected</div>` : ''}
+                        <div style="margin-top:8px;text-align:center;">
                             <button class="btn btn-sm btn-primary" onclick="showAddPayment()">+ Add Payment</button>
                         </div>
-                        ${paymentHistory.length > 0 ? `
-                        <div class="table-container">
-                            <table>
-                                <thead>
-                                    <tr>
-                                        <th>#</th>
-                                        <th>Date</th>
-                                        <th>Amount</th>
-                                        <th>Method</th>
-                                        <th>Receipt</th>
-                                        <th>Status</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    ${paymentHistory.map(p => `
-                                        <tr>
-                                            <td>${Utils.escapeHtml(p.number)}</td>
-                                            <td>${Utils.formatDate(p.date)}</td>
-                                            <td>${Utils.escapeHtml(p.amount)}</td>
-                                            <td>${Utils.escapeHtml(p.method)}</td>
-                                            <td>${Utils.escapeHtml(p.receipt)}</td>
-                                            <td>${p.status === 'Paid'
-                                                ? '<span class="badge badge-success">Paid</span>'
-                                                : p.status === 'Overdue'
-                                                    ? '<span class="badge badge-error">Overdue</span>'
-                                                    : '<span class="badge badge-warning">Due</span>'
-                                            }</td>
-                                        </tr>
-                                    `).join('')}
-                                </tbody>
-                            </table>
-                        </div>
-                        ` : '<p style="color:var(--text-muted);padding:12px 0;">No payment records yet. Click "Add Payment" to record a payment.</p>'}
                     </div>
 
                     <!-- Add Payment Form (hidden) -->
@@ -310,6 +272,15 @@
                         <div class="card-header">
                             <h3 class="card-title">Record Payment</h3>
                             <button class="btn btn-text btn-sm" onclick="hideAddPayment()">Cancel</button>
+                        </div>
+                        <div class="form-group">
+                            <label>Pay for *</label>
+                            <select id="add-pay-target">
+                                ${plat ? `<option value="platform">${(() => { const ps = Utils.calcPaySummaryFromHistory(plat['Amount'], platPayHistory); const nextDue = platPayHistory.find(p => p.status === 'Due'); return 'Platform' + (nextDue ? ' (' + Utils.formatCurrency(parseFloat(nextDue.amount.replace(/[^0-9.-]/g,''))) + ' due ' + Utils.formatDate(nextDue.date) + ')' : ''); })()}</option>` : ''}
+                                ${projectBatches.map((b, i) => { const h = projPayHistories[i] || []; const nd = h.find(p => p.status === 'Due'); return `<option value="project-${i}">Project Batch ${i+1}: ${b['Projects'] || ''}${nd ? ' (' + Utils.formatCurrency(parseFloat(nd.amount.replace(/[^0-9.-]/g,''))) + ' due)' : ''}</option>`; }).join('')}
+                                ${userBatches.map((b, i) => { const h = userPayHistories[i] || []; const nd = h.find(p => p.status === 'Due'); return `<option value="user-${i}">User Batch ${i+1}: ${b['Users'] || ''}${nd ? ' (' + Utils.formatCurrency(parseFloat(nd.amount.replace(/[^0-9.-]/g,''))) + ' due)' : ''}</option>`; }).join('')}
+                                <option value="global">Other / Ad-hoc (global)</option>
+                            </select>
                         </div>
                         <div class="form-row">
                             <div class="form-group">
@@ -530,148 +501,104 @@
 
         // Submit payment — updates installment row in issue body + recalculates totals + audit comment
         async function submitPayment() {
+            const target = document.getElementById('add-pay-target').value;
             const date = document.getElementById('add-pay-date').value;
             const amount = document.getElementById('add-pay-amount').value;
             const methodSelect = document.getElementById('add-pay-method').value;
-            const method = methodSelect === 'Other'
-                ? (document.getElementById('add-pay-method-custom').value.trim() || 'Other')
-                : methodSelect;
+            const method = methodSelect === 'Other' ? (document.getElementById('add-pay-method-custom').value.trim() || 'Other') : methodSelect;
             const receipt = document.getElementById('add-pay-receipt').value.trim() || '—';
 
-            if (!date || !amount) {
-                Toast.show('Date and Amount are required.', 'error');
-                return;
-            }
-
+            if (!date || !amount) { Toast.show('Date and Amount are required.', 'error'); return; }
             const paidAmount = parseFloat(amount);
-            if (isNaN(paidAmount) || paidAmount <= 0) {
-                Toast.show('Please enter a valid amount.', 'error');
-                return;
-            }
-
-            // Check for overpayment
-            const currentPaySummary = Utils.calculatePaymentSummary(currentParsed.payment || {}, currentParsed.paymentHistory || []);
-            if (currentPaySummary.contractValue > 0) {
-                const wouldBeTotalPaid = currentPaySummary.totalPaid + paidAmount;
-                if (wouldBeTotalPaid > currentPaySummary.contractValue) {
-                    const excess = wouldBeTotalPaid - currentPaySummary.contractValue;
-                    const proceed = confirm(`This payment of ${paidAmount.toLocaleString()} will exceed the contract value by ${excess.toLocaleString()}.\n\nTotal Paid will be: ${wouldBeTotalPaid.toLocaleString()}\nContract Value: ${currentPaySummary.contractValue.toLocaleString()}\n\nContinue?`);
-                    if (!proceed) return;
-                }
-            }
+            if (isNaN(paidAmount) || paidAmount <= 0) { Toast.show('Please enter a valid amount.', 'error'); return; }
 
             try {
                 Toast.show('Recording payment...', 'info');
 
-                const org = currentParsed.organization;
-                const plat = currentParsed.platform || currentParsed.subscriptions[0] || {};
-                const payment = currentParsed.payment || {};
-                const payHistory = [...(currentParsed.paymentHistory || [])];
-                const alerts = currentParsed.alerts;
-                const notes = currentParsed.notes;
+                // Build subTypes with all payment histories
+                const subTypes = buildSubTypesFromParsed(currentParsed);
 
-                // Find the first "Due" installment and update it to "Paid"
-                let updatedExisting = false;
-                for (const p of payHistory) {
-                    if (p.status === 'Due') {
-                        p.date = date;
-                        const currSymbol = Utils.getCurrencySymbol(plat['Currency']);
-                        p.amount = currSymbol + paidAmount.toLocaleString();
-                        p.method = method;
-                        p.receipt = receipt;
-                        p.status = 'Paid';
-                        updatedExisting = true;
-                        break;
+                // Determine which payment history to update
+                let targetHistory = null;
+                let targetAmount = 0;
+                let targetLabel = '';
+
+                if (target === 'platform' && subTypes.platformPayHistory) {
+                    targetHistory = subTypes.platformPayHistory;
+                    targetAmount = parseFloat(((currentParsed.platform || {})['Amount'] || '0').replace(/[^0-9.-]/g, '')) || 0;
+                    targetLabel = 'Platform';
+                } else if (target.startsWith('project-')) {
+                    const idx = parseInt(target.split('-')[1]);
+                    if (subTypes.projectPayHistories && subTypes.projectPayHistories[idx]) {
+                        targetHistory = subTypes.projectPayHistories[idx];
+                        targetAmount = parseFloat(((currentParsed.projectBatches[idx] || {})['Amount'] || '0').replace(/[^0-9.-]/g, '')) || 0;
+                        targetLabel = 'Project Batch ' + (idx + 1);
+                    }
+                } else if (target.startsWith('user-')) {
+                    const idx = parseInt(target.split('-')[1]);
+                    if (subTypes.userPayHistories && subTypes.userPayHistories[idx]) {
+                        targetHistory = subTypes.userPayHistories[idx];
+                        targetAmount = parseFloat(((currentParsed.userBatches[idx] || {})['Amount'] || '0').replace(/[^0-9.-]/g, '')) || 0;
+                        targetLabel = 'User Batch ' + (idx + 1);
                     }
                 }
 
-                // If no "Due" installment found (one-time or all paid), add a new row
-                if (!updatedExisting) {
-                    const currSymbol2 = Utils.getCurrencySymbol(plat['Currency']);
-                    payHistory.push({
-                        number: String(payHistory.length + 1),
-                        date: date,
-                        amount: currSymbol2 + paidAmount.toLocaleString(),
-                        method: method,
-                        receipt: receipt,
-                        status: 'Paid'
+                if (target === 'global' || !targetHistory) {
+                    // Ad-hoc global payment
+                    if (!subTypes.globalPayHistory) subTypes.globalPayHistory = [...(currentParsed.paymentHistory || [])];
+                    subTypes.globalPayHistory.push({
+                        number: String(subTypes.globalPayHistory.length + 1),
+                        date, amount: String(paidAmount), method, receipt, status: 'Paid'
                     });
-                }
-
-                // Recalculate totals from history
-                const contractValue = parseFloat((payment['Contract Value'] || '0').replace(/[^0-9.]/g, '')) || 0;
-                let totalPaid = 0;
-                for (const p of payHistory) {
-                    if (p.status === 'Paid') {
-                        totalPaid += parseFloat((p.amount || '0').replace(/[^0-9.]/g, '')) || 0;
-                    }
-                }
-                const remaining = Math.max(0, contractValue - totalPaid);
-
-                // Determine payment status
-                let payStatus = 'Due';
-                if (contractValue > 0 && totalPaid >= contractValue) payStatus = 'Fully Paid';
-                else if (totalPaid > 0) payStatus = 'Partially Paid';
-
-                // Check for overdue — only "Due" rows with past dates
-                const today = new Date();
-                today.setHours(0, 0, 0, 0);
-                for (const p of payHistory) {
-                    if (p.status === 'Due' && p.date && p.date !== '—') {
-                        const dueDate = new Date(p.date + 'T00:00:00');
-                        if (dueDate < today) {
-                            payStatus = 'Overdue';
+                    targetLabel = 'Global/Ad-hoc';
+                } else {
+                    // Find first "Due" row and mark as Paid
+                    let updated = false;
+                    for (const p of targetHistory) {
+                        if (p.status === 'Due') {
+                            p.date = date;
+                            p.amount = String(paidAmount);
+                            p.method = method;
+                            p.receipt = receipt;
+                            p.status = 'Paid';
+                            updated = true;
                             break;
                         }
                     }
+                    if (!updated) {
+                        targetHistory.push({
+                            number: String(targetHistory.length + 1),
+                            date, amount: String(paidAmount), method, receipt, status: 'Paid'
+                        });
+                    }
+
+                    // Redistribute remaining across "Due" rows
+                    Utils.redistributePayments(targetHistory, targetAmount);
                 }
 
-                // Rebuild issue body preserving all data
+                // Recalculate global totals
                 const orgData = buildOrgDataFromParsed(currentParsed, currentIssue);
-                const subTypes = buildSubTypesFromParsed(currentParsed);
+                const payment = currentParsed.payment || {};
+                const combinedSummary = Utils.calculatePaymentSummary(payment, subTypes.globalPayHistory || currentParsed.paymentHistory || [], { ...currentParsed, platformPayHistory: subTypes.platformPayHistory, projectPayHistories: subTypes.projectPayHistories, userPayHistories: subTypes.userPayHistories });
 
                 const paymentData = {
                     contractValue: payment['Contract Value'] || '',
-                    schedule: payment['Payment Schedule'] || 'One-time',
-                    totalPaid: Utils.getCurrencySymbol(plat['Currency']) + totalPaid.toFixed(2).replace(/\.00$/, ''),
-                    remaining: Utils.getCurrencySymbol(plat['Currency']) + remaining.toFixed(2).replace(/\.00$/, ''),
-                    status: payStatus
+                    totalPaid: String(combinedSummary.totalPaid),
+                    remaining: String(combinedSummary.remaining),
+                    status: combinedSummary.status,
+                    globalPayHistory: subTypes.globalPayHistory || currentParsed.paymentHistory || []
                 };
 
-                const alertData = {
-                    enabled: alerts['Alerts Enabled'] || 'Yes',
-                    daysBefore: alerts['Alert Days Before'] || '60',
-                    recipients: alerts['Alert Recipients'] || ''
-                };
+                const alertData = { enabled: currentParsed.alerts['Alerts Enabled'] || 'Yes', daysBefore: currentParsed.alerts['Alert Days Before'] || '60', recipients: currentParsed.alerts['Alert Recipients'] || '' };
 
-                // Build body without auto-generated history
-                let newBody = Utils.buildIssueBody(orgData, subTypes, paymentData, alertData, notes);
-
-                // Remove auto-generated Payment History (from buildIssueBody installment generation)
-                newBody = newBody.replace(/\n## Payment History\n[\s\S]*?(?=\n## |$)/, '');
-
-                // Insert actual payment history before Alert Settings
-                const historySection = `\n## Payment History\n| # | Date | Amount | Method | Receipt | Status |\n|---|------|--------|--------|---------|--------|\n` +
-                    payHistory.map(p => `| ${p.number} | ${p.date} | ${p.amount} | ${p.method} | ${p.receipt} | ${p.status} |`).join('\n') + '\n';
-
-                const alertIdx = newBody.indexOf('\n## Alert Settings');
-                if (alertIdx !== -1) {
-                    newBody = newBody.slice(0, alertIdx) + historySection + newBody.slice(alertIdx);
-                } else {
-                    newBody += historySection;
-                }
-
-                // Update issue body
+                const newBody = Utils.buildIssueBody(orgData, subTypes, paymentData, alertData, currentParsed.notes);
                 await GitHubAPI.updateOrganization(currentIssue.number, { body: newBody });
 
-                // Add audit comment
+                // Audit comment
                 const userName = Auth.getUserName();
-                const cs = Utils.getCurrencySymbol(plat['Currency']);
-                const commentBody = `💰 **Payment recorded by ${userName}** — ${Utils.formatDate(new Date().toISOString())}\n\n| Field | Value |\n|-------|-------|\n| Date | ${Utils.formatDate(date)} |\n| Amount | ${cs}${paidAmount.toLocaleString()} |\n| Method | ${method} |\n| Receipt | ${receipt} |\n\n**Updated Totals:** Paid: ${cs}${totalPaid.toLocaleString()} | Remaining: ${cs}${remaining.toLocaleString()} | Status: ${payStatus}`;
+                await GitHubAPI.addComment(currentIssue.number, `💰 **Payment recorded by ${userName}** — ${Utils.formatDate(new Date().toISOString())}\n\n| Field | Value |\n|-------|-------|\n| For | ${targetLabel} |\n| Date | ${Utils.formatDate(date)} |\n| Amount | ${paidAmount.toLocaleString()} |\n| Method | ${method} |\n| Receipt | ${receipt} |`);
 
-                await GitHubAPI.addComment(currentIssue.number, commentBody);
-
-                Toast.show(`Payment of ${cs}${paidAmount.toLocaleString()} recorded! Remaining: ${cs}${remaining.toLocaleString()}`, 'success');
+                Toast.show(`Payment of ${paidAmount.toLocaleString()} recorded for ${targetLabel}!`, 'success');
                 hideAddPayment();
                 await loadOrganization();
             } catch (error) {
@@ -696,6 +623,43 @@
             }
         }
 
+        // ─── Per-Subscription Payment History Card ──────
+        function renderPayHistoryCard(label, amount, history, type, index) {
+            if (!amount && (!history || history.length === 0)) return '';
+            const totalAmt = amount ? parseFloat(String(amount).replace(/[^0-9.-]/g, '')) || 0 : 0;
+            const summary = Utils.calcPaySummaryFromHistory(totalAmt, history);
+
+            return `
+            <div class="card" style="margin-bottom:12px;">
+                <div class="card-header">
+                    <h3 class="card-title" style="font-size:14px;">${Utils.escapeHtml(label)} — Payments</h3>
+                    ${Utils.paymentStatusBadge(summary.status)}
+                </div>
+                ${totalAmt > 0 ? `
+                <div style="display:flex;gap:16px;font-size:13px;margin-bottom:8px;">
+                    <span>Amount: <strong>${Utils.formatCurrency(totalAmt)}</strong></span>
+                    <span>Paid: <strong style="color:var(--success);">${Utils.formatCurrency(summary.totalPaid)}</strong></span>
+                    <span>Remaining: <strong style="color:${summary.remaining > 0 ? 'var(--warning)' : 'var(--success)'};">${Utils.formatCurrency(summary.remaining)}</strong></span>
+                    <span>${summary.percentage}%</span>
+                </div>
+                <div class="payment-progress-container" style="height:6px;margin-bottom:8px;">
+                    <div class="payment-progress-bar" style="width:${summary.percentage}%"></div>
+                </div>` : ''}
+                ${history && history.length > 0 ? `
+                <div class="table-container"><table style="font-size:12px;">
+                    <thead><tr><th>#</th><th>Date</th><th>Amount</th><th>Method</th><th>Receipt</th><th>Status</th></tr></thead>
+                    <tbody>${history.map(p => `<tr>
+                        <td>${Utils.escapeHtml(p.number)}</td>
+                        <td>${Utils.formatDate(p.date)}</td>
+                        <td>${Utils.escapeHtml(p.amount)}</td>
+                        <td>${Utils.escapeHtml(p.method)}</td>
+                        <td>${Utils.escapeHtml(p.receipt)}</td>
+                        <td>${p.status === 'Paid' ? '<span class="badge badge-success">Paid</span>' : p.status === 'Overdue' ? '<span class="badge badge-error">Overdue</span>' : '<span class="badge badge-warning">Due</span>'}</td>
+                    </tr>`).join('')}</tbody>
+                </table></div>` : '<p style="color:var(--text-muted);font-size:12px;">No installments generated.</p>'}
+            </div>`;
+        }
+
         // ─── Quick Note (inline, no full edit) ─────────
         async function saveQuickNote() {
             const note = document.getElementById('quick-note').value.trim();
@@ -715,7 +679,12 @@
 
         // ─── Helper: rebuild subTypes object from parsed data ──────
         function buildSubTypesFromParsed(parsed) {
-            const subTypes = { platform: null, projectBatches: [], userBatches: [] };
+            const subTypes = { platform: null, platformPayHistory: [], projectBatches: [], projectPayHistories: [], userBatches: [], userPayHistories: [] };
+
+            // Carry over per-subscription payment histories
+            subTypes.platformPayHistory = [...(parsed.platformPayHistory || [])];
+            subTypes.projectPayHistories = (parsed.projectPayHistories || []).map(h => [...h]);
+            subTypes.userPayHistories = (parsed.userPayHistories || []).map(h => [...h]);
 
             if (parsed.platform) {
                 const p = parsed.platform;
