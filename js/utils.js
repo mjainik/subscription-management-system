@@ -58,7 +58,7 @@ const Utils = {
     formatCurrency(amount) {
         if (!amount && amount !== 0) return '—';
         const num = typeof amount === 'string' ? parseFloat(amount.replace(/[^0-9.-]/g, '')) : amount;
-        if (isNaN(num)) return '—';
+        if (isNaN(num) || num === 0) return '—';
         return num.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
     },
 

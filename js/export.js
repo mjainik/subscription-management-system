@@ -212,25 +212,25 @@ const Export = {
             </table>
         `;
 
-        // Payment History
-        if (payHistory.length > 0) {
-            html += `<h2>Payment History</h2>
+        // Per-Subscription Payment Histories
+        const allPaySections = [];
+        if (parsed.platformPayHistory && parsed.platformPayHistory.length > 0) allPaySections.push({ label: 'Platform Payments', history: parsed.platformPayHistory });
+        (parsed.projectPayHistories || []).forEach((h, i) => { if (h && h.length > 0) allPaySections.push({ label: `Project Batch ${i+1} Payments`, history: h }); });
+        (parsed.userPayHistories || []).forEach((h, i) => { if (h && h.length > 0) allPaySections.push({ label: `User Batch ${i+1} Payments`, history: h }); });
+        if (payHistory.length > 0) allPaySections.push({ label: 'Other Payments', history: payHistory });
+
+        for (const sec of allPaySections) {
+            html += `<h2>${sec.label}</h2>
             <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
                 <tr style="background: #F8F9FB;">
-                    <th style="${tdStyle} text-align: left;">#</th>
-                    <th style="${tdStyle} text-align: left;">Date</th>
-                    <th style="${tdStyle} text-align: left;">Amount</th>
-                    <th style="${tdStyle} text-align: left;">Method</th>
-                    <th style="${tdStyle} text-align: left;">Receipt</th>
-                    <th style="${tdStyle} text-align: left;">Status</th>
+                    <th style="${tdStyle} text-align: left;">#</th><th style="${tdStyle} text-align: left;">Date</th>
+                    <th style="${tdStyle} text-align: left;">Amount</th><th style="${tdStyle} text-align: left;">Method</th>
+                    <th style="${tdStyle} text-align: left;">Receipt</th><th style="${tdStyle} text-align: left;">Status</th>
                 </tr>
-                ${payHistory.map(p => `<tr>
-                    <td style="${tdStyle}">${Utils.escapeHtml(p.number)}</td>
-                    <td style="${tdStyle}">${Utils.formatDate(p.date)}</td>
-                    <td style="${tdStyle}">${Utils.escapeHtml(p.amount)}</td>
-                    <td style="${tdStyle}">${Utils.escapeHtml(p.method)}</td>
-                    <td style="${tdStyle}">${Utils.escapeHtml(p.receipt)}</td>
-                    <td style="${tdStyle}">${Utils.escapeHtml(p.status)}</td>
+                ${sec.history.map(p => `<tr>
+                    <td style="${tdStyle}">${Utils.escapeHtml(p.number)}</td><td style="${tdStyle}">${Utils.formatDate(p.date)}</td>
+                    <td style="${tdStyle}">${Utils.escapeHtml(p.amount)}</td><td style="${tdStyle}">${Utils.escapeHtml(p.method)}</td>
+                    <td style="${tdStyle}">${Utils.escapeHtml(p.receipt)}</td><td style="${tdStyle}">${Utils.escapeHtml(p.status)}</td>
                 </tr>`).join('')}
             </table>`;
         }

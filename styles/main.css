@@ -622,6 +622,49 @@ tbody td {
 .empty-state h3 { font-size: 18px; color: var(--text); margin-bottom: 8px; }
 .empty-state p { margin-bottom: 16px; }
 
+/* ─── Phone Input Group ──────────────────────────────────── */
+.phone-input-group {
+    display: flex;
+    gap: 0;
+}
+
+.country-code-select {
+    width: 110px !important;
+    flex-shrink: 0;
+    border-radius: var(--radius-sm) 0 0 var(--radius-sm) !important;
+    border-right: none !important;
+    font-size: 13px;
+    padding: 10px 6px;
+    background: var(--bg);
+}
+
+.phone-input-group input[type="tel"] {
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0 !important;
+    flex: 1;
+}
+
+/* ─── Batch Cards ────────────────────────────────────────── */
+.batch-card {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    margin-bottom: 12px;
+    background: var(--bg-white);
+}
+
+.batch-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.batch-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text);
+}
+
 /* ─── File Upload ────────────────────────────────────────── */
 .file-upload-area {
     border: 2px dashed var(--border);

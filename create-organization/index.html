@@ -1035,7 +1035,7 @@
 
             // Clear all form fields
             document.querySelectorAll('input:not([type="hidden"]), textarea, select').forEach(el => {
-                if (el.id === 'sub-currency') { el.value = 'USD'; return; }
+                if (el.id === 'plat-currency') { el.value = 'USD'; return; }
                 if (el.id === 'alert-enabled') { el.value = 'Yes'; return; }
                 if (el.id === 'alert-days') { el.value = '60'; return; }
                 if (el.tagName === 'SELECT') { el.selectedIndex = 0; return; }
