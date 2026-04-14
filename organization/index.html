@@ -425,7 +425,7 @@
             try {
                 await GitHubAPI.updateStatusLabel(currentIssue.number, label, currentLabels);
                 await GitHubAPI.addComment(currentIssue.number,
-                    `✏️ **Status changed by ${Auth.getUserName()}** — ${Utils.formatDate(new Date().toISOString())}\n\nNew status: ${label}`
+                    `✏️ **Status changed by ${Auth.getUserName()}** — ${Utils.formatDateTime(new Date().toISOString())}\n\nNew status: ${label}`
                 );
                 Toast.show('Status updated!', 'success');
                 await loadOrganization();
@@ -457,7 +457,7 @@
                 await GitHubAPI.updateOrganization(currentIssue.number, { state: 'open' });
                 await GitHubAPI.removeLabel(currentIssue.number, CONFIG.labels.other.deleted);
                 const userName = Auth.getUserName();
-                await GitHubAPI.addComment(currentIssue.number, `✏️ **Re-opened by ${userName}** — ${Utils.formatDate(new Date().toISOString())}`);
+                await GitHubAPI.addComment(currentIssue.number, `✏️ **Re-opened by ${userName}** — ${Utils.formatDateTime(new Date().toISOString())}`);
                 Toast.show('Organization re-opened!', 'success');
                 await loadOrganization();
             } catch (error) {
@@ -596,7 +596,7 @@
 
                 // Audit comment
                 const userName = Auth.getUserName();
-                await GitHubAPI.addComment(currentIssue.number, `💰 **Payment recorded by ${userName}** — ${Utils.formatDate(new Date().toISOString())}\n\n| Field | Value |\n|-------|-------|\n| For | ${targetLabel} |\n| Date | ${Utils.formatDate(date)} |\n| Amount | ${paidAmount.toLocaleString()} |\n| Method | ${method} |\n| Receipt | ${receipt} |`);
+                await GitHubAPI.addComment(currentIssue.number, `💰 **Payment recorded by ${userName}** — ${Utils.formatDateTime(new Date().toISOString())}\n\n| Field | Value |\n|-------|-------|\n| For | ${targetLabel} |\n| Date | ${Utils.formatDate(date)} |\n| Amount | ${paidAmount.toLocaleString()} |\n| Method | ${method} |\n| Receipt | ${receipt} |`);
 
                 Toast.show(`Payment of ${paidAmount.toLocaleString()} recorded for ${targetLabel}!`, 'success');
                 hideAddPayment();
@@ -737,7 +737,7 @@
             try {
                 Toast.show('Saving note...', 'info');
                 const userName = Auth.getUserName();
-                const commentBody = `📝 **Note by ${userName}** — ${Utils.formatDate(new Date().toISOString())}\n\n${note}`;
+                const commentBody = `📝 **Note by ${userName}** — ${Utils.formatDateTime(new Date().toISOString())}\n\n${note}`;
                 await GitHubAPI.addComment(currentIssue.number, commentBody);
                 Toast.show('Note saved!', 'success');
                 await loadOrganization();
@@ -888,7 +888,7 @@
 
                 await GitHubAPI.updateOrganization(currentIssue.number, { body: newBody });
                 const userName = Auth.getUserName();
-                await GitHubAPI.addComment(currentIssue.number, `✏️ **${isProject ? 'Project' : 'User'} Batch ${index + 1} edited by ${userName}** — ${Utils.formatDate(new Date().toISOString())}`);
+                await GitHubAPI.addComment(currentIssue.number, `✏️ **${isProject ? 'Project' : 'User'} Batch ${index + 1} edited by ${userName}** — ${Utils.formatDateTime(new Date().toISOString())}`);
 
                 Toast.show('Batch updated!', 'success');
                 await loadOrganization();
@@ -930,7 +930,7 @@
 
                     await GitHubAPI.updateOrganization(currentIssue.number, { body: newBody });
                     const userName = Auth.getUserName();
-                    await GitHubAPI.addComment(currentIssue.number, `✏️ **${label} Batch ${index + 1} deleted by ${userName}** — ${Utils.formatDate(new Date().toISOString())}`);
+                    await GitHubAPI.addComment(currentIssue.number, `✏️ **${label} Batch ${index + 1} deleted by ${userName}** — ${Utils.formatDateTime(new Date().toISOString())}`);
 
                     Toast.show('Batch deleted!', 'success');
                     await loadOrganization();
@@ -1042,7 +1042,7 @@
                 await GitHubAPI.updateOrganization(currentIssue.number, { body: newBody });
 
                 const userName = Auth.getUserName();
-                await GitHubAPI.addComment(currentIssue.number, `✏️ **${isProject ? 'Project' : 'User'} batch added by ${userName}** — ${Utils.formatDate(new Date().toISOString())}\n\n${isProject ? 'Projects' : 'Users'}: ${names}\nPeriod: ${start} to ${expiry}`);
+                await GitHubAPI.addComment(currentIssue.number, `✏️ **${isProject ? 'Project' : 'User'} batch added by ${userName}** — ${Utils.formatDateTime(new Date().toISOString())}\n\n${isProject ? 'Projects' : 'Users'}: ${names}\nPeriod: ${start} to ${expiry}`);
 
                 Toast.show('Batch added!', 'success');
                 await loadOrganization();
@@ -1379,7 +1379,7 @@
                 // Add audit comment
                 if (changes.length > 0) {
                     const userName = Auth.getUserName();
-                    const auditBody = `✏️ **Updated by ${userName}** — ${Utils.formatDate(new Date().toISOString())}\n\n| Field | Old Value | New Value |\n|-------|-----------|----------|\n${changes.join('\n')}`;
+                    const auditBody = `✏️ **Updated by ${userName}** — ${Utils.formatDateTime(new Date().toISOString())}\n\n| Field | Old Value | New Value |\n|-------|-----------|----------|\n${changes.join('\n')}`;
                     await GitHubAPI.addComment(currentIssue.number, auditBody);
                 }
 

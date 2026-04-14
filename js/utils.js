@@ -42,6 +42,21 @@ const Utils = {
         return `${String(date.getDate()).padStart(2, '0')}-${months[date.getMonth()]}-${date.getFullYear()}`;
     },
 
+    /**
+     * Format date + time for audit logs (DD-MMM-YYYY hh:mm AM/PM)
+     */
+    formatDateTime(dateStr) {
+        if (!dateStr) return '—';
+        const date = dateStr.includes('T') ? new Date(dateStr) : new Date(dateStr);
+        if (isNaN(date.getTime())) return this.formatDate(dateStr);
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        let hours = date.getHours();
+        const ampm = hours >= 12 ? 'PM' : 'AM';
+        hours = hours % 12 || 12;
+        const mins = String(date.getMinutes()).padStart(2, '0');
+        return `${String(date.getDate()).padStart(2, '0')}-${months[date.getMonth()]}-${date.getFullYear()} ${hours}:${mins} ${ampm}`;
+    },
+
     formatDateApi(date) {
         if (!date) return '';
         const d = new Date(date);

@@ -481,7 +481,7 @@ const GitHubAPI = {
             reader.onload = async () => {
                 try {
                     // Create comment with file reference
-                    const body = `📄 **Document uploaded by ${userName}**\n\nFile: \`${Utils.escapeHtml(file.name)}\`\nSize: ${(file.size / 1024).toFixed(1)} KB\nDate: ${Utils.formatDate(new Date().toISOString())}\n\n> To attach the actual file, please drag and drop it into this comment on GitHub.`;
+                    const body = `📄 **Document uploaded by ${userName}**\n\nFile: \`${Utils.escapeHtml(file.name)}\`\nSize: ${(file.size / 1024).toFixed(1)} KB\nDate: ${Utils.formatDateTime(new Date().toISOString())}\n\n> To attach the actual file, please drag and drop it into this comment on GitHub.`;
 
                     const comment = await this.addComment(issueNumber, body);
 
