@@ -665,29 +665,28 @@
             const cycle = document.getElementById('edit-cycle').value;
             const startInput = document.getElementById('edit-start');
             const expiryInput = document.getElementById('edit-expiry');
-            if (!startInput || !expiryInput) return;
-            if (!startInput.value) return;
+            if (!startInput || !expiryInput || !startInput.value) return;
 
-            let months = 0;
-            if (cycle === 'Monthly') months = 1;
-            else if (cycle === 'Quarterly') months = 3;
-            else if (cycle === 'Annual') months = 12;
-            else if (cycle === 'Other') {
-                const cm = parseInt(document.getElementById('edit-cycle-months').value);
-                if (cm > 0) months = cm;
-            }
-            // Also check subscription type for Custom
+            // Duration comes from subscription type or custom duration, NOT from cycle
+            let durationMonths = 12; // default 1 year
+
             const subType = document.getElementById('edit-sub-type').value;
             if (subType === 'Custom') {
                 const cd = parseInt(document.getElementById('edit-custom-duration').value);
-                if (cd > 0) months = cd;
+                if (cd > 0) durationMonths = cd;
+            } else if (subType === 'Monthly') durationMonths = 1;
+            else if (subType === 'Quarterly') durationMonths = 3;
+            else if (subType === 'Annual') durationMonths = 12;
+
+            // For "Other" cycle with custom months — use as duration only if no sub type provides it
+            if (cycle === 'Other') {
+                const cm = parseInt(document.getElementById('edit-cycle-months').value);
+                if (cm > 0) durationMonths = cm;
             }
 
-            if (months > 0) {
-                const d = new Date(startInput.value + 'T00:00:00');
-                d.setMonth(d.getMonth() + months);
-                expiryInput.value = Utils.formatDateApi(d);
-            }
+            const d = new Date(startInput.value + 'T00:00:00');
+            d.setMonth(d.getMonth() + durationMonths);
+            expiryInput.value = Utils.formatDateApi(d);
         }
 
         // ─── Auto-Calculate Expiry in Add Batch Form ────
@@ -699,16 +698,15 @@
 
             if (!startInput.value) startInput.value = Utils.formatDateApi(new Date());
 
-            let months = 0;
-            if (cycle === 'Monthly') months = 1;
-            else if (cycle === 'Quarterly') months = 3;
-            else if (cycle === 'Annual') months = 12;
-            else if (cycle === 'Other') {
+            // Default duration = 1 year (cycle only affects payment frequency, not duration)
+            let months = 12;
+            if (cycle === 'Other') {
                 const cm = parseInt(document.getElementById('new-batch-cycle-months').value);
                 if (cm > 0) months = cm;
             }
 
-            if (months > 0) {
+            // Only auto-set expiry if it's empty (don't override user's manual entry)
+            if (!expiryInput.value) {
                 const d = new Date(startInput.value + 'T00:00:00');
                 d.setMonth(d.getMonth() + months);
                 expiryInput.value = Utils.formatDateApi(d);
@@ -722,20 +720,13 @@
             const expiryInput = document.getElementById('edit-batch-expiry');
             if (!cycleSelect || !startInput || !expiryInput || !startInput.value) return;
 
-            const cycle = cycleSelect.value;
-            let months = 0;
-            if (cycle === 'Monthly') months = 1;
-            else if (cycle === 'Quarterly') months = 3;
-            else if (cycle === 'Annual') months = 12;
+            // Default 1 year duration. Cycle = payment frequency, not duration.
+            const d = new Date(startInput.value + 'T00:00:00');
+            d.setFullYear(d.getFullYear() + 1);
+            expiryInput.value = Utils.formatDateApi(d);
 
-            if (months > 0) {
-                const d = new Date(startInput.value + 'T00:00:00');
-                d.setMonth(d.getMonth() + months);
-                expiryInput.value = Utils.formatDateApi(d);
-                // Update display
-                const displayInput = document.getElementById('edit-batch-expiry-display');
-                if (displayInput) displayInput.value = Utils.formatDate(Utils.formatDateApi(d));
-            }
+            const displayInput = document.getElementById('edit-batch-expiry-display');
+            if (displayInput) displayInput.value = Utils.formatDate(Utils.formatDateApi(d));
         }
 
         // ─── Quick Note (inline, no full edit) ─────────
