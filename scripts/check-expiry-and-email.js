@@ -321,7 +321,7 @@ async function main() {
             const globalList = (ALERT_RECIPIENTS || '').split(',').map(e => e.trim()).filter(Boolean);
 
             await api(`/repos/${OWNER}/${REPO}/issues/${alert.issueNumber}/comments`, 'POST', {
-                body: `📧 **Alert email sent** — ${new Date().toISOString().split('T')[0]}\n\n| Field | Value |\n|-------|-------|\n| Threshold | ${alert.threshold} days |\n| Days Remaining | ${alert.days} |\n| Team Recipients | ${globalList.join(', ') || 'None'} |\n| Org Recipients | ${allNotified.length > 0 ? allNotified.join(', ') : 'None'} |`
+                body: `📧 **Alert email sent** — ${new Date().toISOString().replace('T', ' ').substring(0, 19)}\n\n**${alert.threshold}d threshold** · ${alert.days} days remaining · Team: ${globalList.join(', ') || 'None'} · Org: ${allNotified.length > 0 ? allNotified.join(', ') : 'None'}`
             });
 
             console.log(`   ✅ #${alert.issueNumber} "${alert.orgName}" — ${alert.alertLabel} applied`);

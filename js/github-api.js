@@ -321,7 +321,7 @@ const GitHubAPI = {
     async addAuditComment(issueNumber, fieldName, oldValue, newValue) {
         const userName = Auth.getUserName();
         const timestamp = new Date().toISOString();
-        const body = `✏️ **Updated by ${userName}** — ${Utils.formatDate(timestamp)}\n\n| Field | Old Value | New Value |\n|-------|-----------|----------|\n| ${fieldName} | ${oldValue} | ${newValue} |`;
+        const body = `✏️ **Updated by ${userName}** — ${Utils.formatDateTime(timestamp)}\n\n**${fieldName}:** ${oldValue} → ${newValue}`;
         return this.addComment(issueNumber, body);
     },
 

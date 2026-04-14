@@ -397,9 +397,10 @@
         }
 
         function formatCommentBody(body) {
-            // Simple markdown-like rendering
-            return Utils.escapeHtml(body.substring(0, 300))
+            return Utils.escapeHtml(body.substring(0, 500))
                 .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+                .replace(/→/g, '<span style="color:var(--brand);">→</span>')
+                .replace(/ · /g, ' <span style="color:var(--text-muted);">·</span> ')
                 .replace(/\n/g, '<br>');
         }
 
@@ -596,7 +597,7 @@
 
                 // Audit comment
                 const userName = Auth.getUserName();
-                await GitHubAPI.addComment(currentIssue.number, `💰 **Payment recorded by ${userName}** — ${Utils.formatDateTime(new Date().toISOString())}\n\n| Field | Value |\n|-------|-------|\n| For | ${targetLabel} |\n| Date | ${Utils.formatDate(date)} |\n| Amount | ${paidAmount.toLocaleString()} |\n| Method | ${method} |\n| Receipt | ${receipt} |`);
+                await GitHubAPI.addComment(currentIssue.number, `💰 **Payment recorded by ${userName}** — ${Utils.formatDateTime(new Date().toISOString())}\n\n**${targetLabel}** · ${Utils.formatDate(date)} · Amount: **${paidAmount.toLocaleString()}** · ${method} · Ref: ${receipt}`);
 
                 Toast.show(`Payment of ${paidAmount.toLocaleString()} recorded for ${targetLabel}!`, 'success');
                 hideAddPayment();
@@ -1042,7 +1043,7 @@
                 await GitHubAPI.updateOrganization(currentIssue.number, { body: newBody });
 
                 const userName = Auth.getUserName();
-                await GitHubAPI.addComment(currentIssue.number, `✏️ **${isProject ? 'Project' : 'User'} batch added by ${userName}** — ${Utils.formatDateTime(new Date().toISOString())}\n\n${isProject ? 'Projects' : 'Users'}: ${names}\nPeriod: ${start} to ${expiry}`);
+                await GitHubAPI.addComment(currentIssue.number, `✏️ **${isProject ? 'Project' : 'User'} batch added by ${userName}** — ${Utils.formatDateTime(new Date().toISOString())}\n\n${isProject ? 'Projects' : 'Users'}: ${names} · Period: ${start} to ${expiry}`);
 
                 Toast.show('Batch added!', 'success');
                 await loadOrganization();
@@ -1349,7 +1350,7 @@
                 ];
                 for (const [field, newVal, oldVal] of fieldMap) {
                     if (newVal !== (oldVal || '') && (newVal || oldVal)) {
-                        changes.push(`| ${field} | ${oldVal || '—'} | ${newVal || '—'} |`);
+                        changes.push(`**${field}:** ${oldVal || '—'} → ${newVal || '—'}`);
                     }
                 }
 
@@ -1379,7 +1380,7 @@
                 // Add audit comment
                 if (changes.length > 0) {
                     const userName = Auth.getUserName();
-                    const auditBody = `✏️ **Updated by ${userName}** — ${Utils.formatDateTime(new Date().toISOString())}\n\n| Field | Old Value | New Value |\n|-------|-----------|----------|\n${changes.join('\n')}`;
+                    const auditBody = `✏️ **Updated by ${userName}** — ${Utils.formatDateTime(new Date().toISOString())}\n\n${changes.join(' · ')}`;
                     await GitHubAPI.addComment(currentIssue.number, auditBody);
                 }
 
