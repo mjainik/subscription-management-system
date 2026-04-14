@@ -102,7 +102,7 @@ const GitHubAPI = {
                         ${afterCursor}
                         states: OPEN,
                         ${labelFilter}
-                        orderBy: {field: CREATED_AT, direction: DESC}
+                        orderBy: {field: UPDATED_AT, direction: DESC}
                     ) {
                         totalCount
                         pageInfo {
