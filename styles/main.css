@@ -103,7 +103,6 @@ a:hover { text-decoration: underline; }
     align-items: center;
     gap: 8px;
 }
-.header-logo::before { content: '📊'; font-size: 20px; }
 .header-logo:hover { text-decoration: none; opacity: 0.9; }
 
 .breadcrumbs { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-secondary); }
@@ -785,7 +784,6 @@ tbody td {
     /* Header compact */
     .app-header { padding: 0 12px; }
     .header-logo { font-size: 16px; }
-    .header-logo::before { display: none; }
     .breadcrumbs { display: none; }
 
     /* File upload compact */
