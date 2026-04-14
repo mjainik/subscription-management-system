@@ -1,7 +1,7 @@
 name: Daily Status Update & Expiry Alerts
 on:
   schedule:
-    - cron: '0 8 * * *'  # Daily at 8:00 AM UTC
+    - cron: '31 18 * * *'  # Daily at 12:01 AM IST (6:31 PM UTC)
   workflow_dispatch:       # Manual trigger
 
 jobs:
