@@ -290,7 +290,7 @@ async function checkPages() {
 // ─── Run All ─────────────────────────────────────────────────
 async function main() {
     console.log('╔══════════════════════════════════════════════════╗');
-    console.log('║   Subscription Manager — Repository Setup       ║');
+    console.log('║   DigiQC SubManager — Repository Setup       ║');
     console.log(`║   Repo: ${OWNER}/${REPO}                        `);
     console.log('╚══════════════════════════════════════════════════╝');
 

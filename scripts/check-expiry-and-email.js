@@ -136,7 +136,7 @@ function buildTeamEmailHtml(alerts) {
             </table>
             <p style="font-size:13px;color:#6B7280;"><a href="${APP_URL}/" style="color:#E8450A;">Open Dashboard</a> to view all subscriptions.</p>
             <hr style="border:none;border-top:1px solid #E5E7EB;margin:20px 0;">
-            <p style="font-size:11px;color:#9CA3AF;">Automated alert from Subscription Manager.</p>
+            <p style="font-size:11px;color:#9CA3AF;">Automated alert from DigiQC SubManager.</p>
         </div>
     </body></html>`;
 }
@@ -172,7 +172,7 @@ function buildOrgEmailHtml(alert) {
             </div>
 
             <hr style="border:none;border-top:1px solid #E5E7EB;margin:20px 0;">
-            <p style="font-size:11px;color:#9CA3AF;">Automated alert from Subscription Manager. <a href="${APP_URL}/" style="color:#9CA3AF;">Open Dashboard</a></p>
+            <p style="font-size:11px;color:#9CA3AF;">Automated alert from DigiQC SubManager. <a href="${APP_URL}/" style="color:#9CA3AF;">Open Dashboard</a></p>
         </div>
     </body></html>`;
 }

@@ -13,7 +13,7 @@ const CONFIG = {
     restUrl: 'https://api.github.com',
 
     // App settings
-    appName: 'Subscription Manager',
+    appName: 'DigiQC SubManager',
     appVersion: '1.0.0',
     baseUrl: '/subscription-management-system',
 
