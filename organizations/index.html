@@ -149,9 +149,12 @@
                     if (parsed.userBatches && parsed.userBatches.length > 0) typeParts.push('Users(' + parsed.userBatches.length + ')');
                     const typeSummary = typeParts.join('+') || (plat['Subscription Type'] || '—');
 
+                    const latestFY = parsed.fyList && parsed.fyList.length > 0 ? parsed.fyList[0] : '';
+
                     return {
                         ...issue,
                         parsed,
+                        latestFY,
                         plat,
                         expiryDate,
                         startDate: plat['Start Date'] || '',

@@ -77,8 +77,9 @@ function buildDailyReportHtml(allOrgs, alertsToSend) {
     const td = 'padding:8px 12px;border-bottom:1px solid #E5E7EB;font-size:13px;';
     const th = `${td}font-weight:700;color:#6B7280;text-align:left;`;
 
-    // Categorize
-    const expired = allOrgs.filter(o => o.days <= 0);
+    // Categorize (with grace period awareness)
+    const inGrace = allOrgs.filter(o => o.days <= 0 && Math.abs(o.days) <= 7); // within 7-day grace
+    const expired = allOrgs.filter(o => o.days <= 0 && Math.abs(o.days) > 7); // past grace
     const thisWeek = allOrgs.filter(o => o.days > 0 && o.days <= 7);
     const thisMonth = allOrgs.filter(o => o.days > 7 && o.days <= 30);
     const upcoming = allOrgs.filter(o => o.days > 30 && o.days <= 90);
@@ -155,6 +156,7 @@ function buildDailyReportHtml(allOrgs, alertsToSend) {
 
             <!-- Sections by urgency -->
             ${sectionHtml('🔴', 'EXPIRED — Action Required NOW', '#DC2626', expired)}
+            ${sectionHtml('⏳', 'IN GRACE PERIOD — Renew Immediately', '#F59E0B', inGrace)}
             ${sectionHtml('🟡', 'EXPIRING THIS WEEK (1-7 days)', '#F59E0B', thisWeek)}
             ${sectionHtml('🟠', 'EXPIRING THIS MONTH (8-30 days)', '#EA580C', thisMonth)}
 
