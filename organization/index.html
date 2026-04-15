@@ -1190,7 +1190,7 @@
                         <div class="form-group"><label>Amount</label><input type="text" id="edit-amount" value="${Utils.escapeHtml(sub['Amount'] || '')}" /></div>
                         <div class="form-group"><label>Currency</label>
                             <select id="edit-currency">
-                                ${['USD','EUR','GBP','INR','AUD','CAD','SGD','AED','SAR','JPY','BRL','ZAR','MYR','CNY'].map(c => `<option value="${c}" ${(sub['Currency'] || 'USD') === c ? 'selected' : ''}>${c}</option>`).join('')}
+                                ${['INR','USD','EUR','GBP','AUD','CAD','SGD','AED','SAR','JPY','BRL','ZAR','MYR','CNY'].map(c => `<option value="${c}" ${(sub['Currency'] || 'INR') === c ? 'selected' : ''}>${c}</option>`).join('')}
                             </select>
                         </div>
                     </div>
