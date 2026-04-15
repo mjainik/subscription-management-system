@@ -101,9 +101,6 @@
                 gracePeriod = plat ? (plat['Grace Period'] || '7') : '7';
             }
             const legacySubs = currentParsed.subscriptions || [];
-            const platPayHistory = currentParsed.platformPayHistory || [];
-            const projPayHistories = currentParsed.projectPayHistories || [];
-            const userPayHistories = currentParsed.userPayHistories || [];
             const paymentHistory = currentParsed.paymentHistory || [];
             const notes = currentParsed.notes;
             const expiryDate = Utils.getEarliestExpiry(currentParsed);
@@ -936,7 +933,26 @@
         function buildSubTypesFromParsed(parsed) {
             const subTypes = { platform: null, platformPayHistory: [], projectBatches: [], projectPayHistories: [], userBatches: [], userPayHistories: [] };
 
-            // Carry over per-subscription payment histories
+            // Preserve FY structure if it exists
+            if (parsed.fyList && parsed.fyList.length > 0) {
+                // Deep copy allFYData so buildIssueBody uses FY-prefixed output
+                subTypes.allFYData = {};
+                for (const fy of parsed.fyList) {
+                    const fd = parsed.fyData[fy];
+                    subTypes.allFYData[fy] = {
+                        platform: fd.platform ? { ...fd.platform } : null,
+                        platformPayHistory: (fd.platformPayHistory || []).map(p => ({ ...p })),
+                        projectBatches: (fd.projectBatches || []).map(b => ({ ...b })),
+                        projectPayHistories: (fd.projectPayHistories || []).map(h => h.map(p => ({ ...p }))),
+                        userBatches: (fd.userBatches || []).map(b => ({ ...b })),
+                        userPayHistories: (fd.userPayHistories || []).map(h => h.map(p => ({ ...p }))),
+                        documents: fd.documents || [],
+                        gracePeriod: fd.gracePeriod || '7'
+                    };
+                }
+            }
+
+            // Carry over per-subscription payment histories (flat — for current FY operations)
             subTypes.platformPayHistory = [...(parsed.platformPayHistory || [])];
             subTypes.projectPayHistories = (parsed.projectPayHistories || []).map(h => [...h]);
             subTypes.userPayHistories = (parsed.userPayHistories || []).map(h => [...h]);
@@ -947,7 +963,8 @@
                     type: p['Subscription Type'] || '', customDuration: p['Custom Duration'] ? p['Custom Duration'].replace(' months', '') : '',
                     planName: p['Plan Name'] || '', startDate: p['Start Date'] || '', expiryDate: p['Expiry Date'] || '',
                     billingDate: p['Billing Date'] || '', paymentCycle: p['Payment Cycle'] || '',
-                    amount: p['Amount'] || '', currency: p['Currency'] || 'USD', autoRenew: p['Auto Renew'] || 'No'
+                    amount: p['Amount'] || '', currency: p['Currency'] || 'INR', autoRenew: p['Auto Renew'] || 'No',
+                    gracePeriod: p['Grace Period'] || '7'
                 };
             }
 

@@ -151,8 +151,8 @@ const Utils = {
         if (!expiryDate) return 'active';
         const days = this.remainingDays(expiryDate);
         const grace = parseInt(graceDays) || 7;
-        if (days > 0) return 'active';
-        if (days <= 0 && Math.abs(days) <= grace) return 'grace';
+        if (days >= 0) return 'active';  // expiry day itself is still active
+        if (days < 0 && Math.abs(days) <= grace) return 'grace';
         return 'expired';
     },
 
