@@ -65,14 +65,42 @@
             }
         }
 
-        function renderDetail() {
+        let currentFYTab = null; // which FY tab is selected
+
+        function renderDetail(selectedFY) {
             const org = currentParsed.organization;
             const alerts = currentParsed.alerts;
-            const plat = currentParsed.platform || currentParsed.subscriptions[0] || null;
-            const projectBatches = currentParsed.projectBatches || [];
-            const userBatches = currentParsed.userBatches || [];
-            const legacySubs = currentParsed.subscriptions || [];
             const payment = currentParsed.payment || {};
+            const fyList = currentParsed.fyList || [];
+            const hasFYData = fyList.length > 0;
+
+            // Determine which FY to show
+            if (!selectedFY && hasFYData) selectedFY = fyList[0]; // default to latest
+            currentFYTab = selectedFY;
+
+            // Get data for selected FY (or flat data for non-FY orgs)
+            let plat, projectBatches, userBatches, platPayHistory, projPayHistories, userPayHistories, fyDocs, gracePeriod;
+            if (hasFYData && selectedFY && currentParsed.fyData[selectedFY]) {
+                const fyD = currentParsed.fyData[selectedFY];
+                plat = fyD.platform;
+                projectBatches = fyD.projectBatches || [];
+                userBatches = fyD.userBatches || [];
+                platPayHistory = fyD.platformPayHistory || [];
+                projPayHistories = fyD.projectPayHistories || [];
+                userPayHistories = fyD.userPayHistories || [];
+                fyDocs = fyD.documents || [];
+                gracePeriod = fyD.gracePeriod || '7';
+            } else {
+                plat = currentParsed.platform || currentParsed.subscriptions[0] || null;
+                projectBatches = currentParsed.projectBatches || [];
+                userBatches = currentParsed.userBatches || [];
+                platPayHistory = currentParsed.platformPayHistory || [];
+                projPayHistories = currentParsed.projectPayHistories || [];
+                userPayHistories = currentParsed.userPayHistories || [];
+                fyDocs = [];
+                gracePeriod = plat ? (plat['Grace Period'] || '7') : '7';
+            }
+            const legacySubs = currentParsed.subscriptions || [];
             const platPayHistory = currentParsed.platformPayHistory || [];
             const projPayHistories = currentParsed.projectPayHistories || [];
             const userPayHistories = currentParsed.userPayHistories || [];
@@ -123,6 +151,28 @@
                             : `<button class="btn btn-primary" onclick="handleReopen()">Re-open</button>`}
                     </div>
                 </div>
+
+                <!-- FY Tabs -->
+                ${hasFYData ? `
+                <div class="fy-tabs">
+                    ${fyList.map(fy => `<button class="fy-tab ${fy === selectedFY ? 'fy-tab-active' : ''}" onclick="renderDetail('${fy}')">${fy}</button>`).join('')}
+                    ${(() => {
+                        // Show "Renew" button if latest FY is expiring/expired
+                        const latestFY = fyList[0];
+                        const latestData = currentParsed.fyData[latestFY];
+                        const latestExpiry = latestData && latestData.platform ? (latestData.platform['Expiry Date'] || latestData.platform.expiryDate) : null;
+                        const latestDays = latestExpiry ? Utils.remainingDays(latestExpiry) : null;
+                        const nextFYDates = latestExpiry ? Utils.parseFYDates(Utils.getFY(new Date(new Date(latestExpiry).getTime() + 86400000).toISOString())) : null;
+                        const nextFY = nextFYDates ? Utils.getFY(nextFYDates.start) : null;
+                        const alreadyRenewed = nextFY && currentParsed.fyData[nextFY];
+                        if (latestDays !== null && latestDays <= 90 && !alreadyRenewed && nextFY) {
+                            return `<button class="btn btn-primary btn-sm" onclick="renewForFY('${nextFY}', '${latestFY}')" style="margin-left:auto;">Renew for ${nextFY}</button>`;
+                        }
+                        return '';
+                    })()}
+                </div>` : ''}
+
+                ${selectedFY ? `<div style="margin-bottom:16px;font-size:13px;color:var(--text-secondary);"><strong>${selectedFY}</strong> ${plat && plat['Expiry Date'] ? '· ' + Utils.graceBadge(plat['Expiry Date'] || plat.expiryDate, gracePeriod) : ''}</div>` : ''}
 
                 <div class="detail-grid">
                     <!-- Organization Info -->
@@ -356,10 +406,28 @@
                         <input type="file" id="doc-file-input" accept=".pdf,.png,.jpg,.jpeg,.docx" style="display:none;" onchange="handleDocUpload(event)" />
                     </div>
 
-                    <!-- Documents -->
+                    <!-- Documents (Year-wise) -->
                     <div class="card">
-                        <div class="card-header"><h3 class="card-title">Documents</h3></div>
-                        <div id="documents-list">
+                        <div class="card-header">
+                            <h3 class="card-title">Documents${selectedFY ? ' — ' + selectedFY : ''}</h3>
+                        </div>
+                        <div class="doc-slots">
+                            ${['Invoice', 'Work Order', 'Contract'].map(docType => {
+                                const existing = fyDocs.find(d => d.type === docType);
+                                return `<div class="doc-slot">
+                                    <span class="doc-slot-type">${docType}</span>
+                                    ${existing
+                                        ? `<span class="doc-slot-file">📄 ${Utils.escapeHtml(existing.file)}</span><span class="doc-slot-meta">${existing.uploadedBy} · ${existing.date}</span>`
+                                        : `<span class="doc-slot-empty">Not uploaded</span>`
+                                    }
+                                    <button class="btn btn-text btn-sm" onclick="uploadFYDocument('${docType}')">Upload</button>
+                                </div>`;
+                            }).join('')}
+                        </div>
+                        <input type="file" id="fy-doc-input" accept=".pdf,.png,.jpg,.jpeg,.docx" style="display:none;" />
+                        <!-- Other documents from comments -->
+                        <div style="margin-top:12px;border-top:1px solid var(--border);padding-top:12px;">
+                            <small style="color:var(--text-muted);">Other attachments:</small>
                             ${renderDocuments()}
                         </div>
                     </div>
@@ -622,6 +690,122 @@
             const displayInput = document.getElementById(id + '-display');
             if (dateInput && displayInput && dateInput.value) {
                 displayInput.value = Utils.formatDate(dateInput.value);
+            }
+        }
+
+        // ─── Renewal for Next FY ────────────────────────
+        async function renewForFY(newFY, fromFY) {
+            const fromData = currentParsed.fyData[fromFY];
+            if (!fromData || !fromData.platform) { Toast.show('No data to renew from.', 'error'); return; }
+
+            const plat = fromData.platform;
+            const fyDates = Utils.parseFYDates(newFY);
+
+            // Pre-fill renewal form
+            const formHtml = `
+                <div class="card" id="renewal-form" style="border:2px solid var(--brand);margin-bottom:16px;">
+                    <div class="card-header">
+                        <h3 class="card-title">Renew for ${newFY}</h3>
+                        <button class="btn btn-text btn-sm" onclick="document.getElementById('renewal-form').remove()">Cancel</button>
+                    </div>
+                    <p style="font-size:13px;color:var(--text-secondary);margin-bottom:12px;">Pre-filled from ${fromFY}. Edit as needed.</p>
+                    <div class="form-row">
+                        <div class="form-group"><label>Start Date</label><input type="date" id="renew-start" value="${fyDates ? fyDates.start : ''}" /></div>
+                        <div class="form-group"><label>Expiry Date</label><input type="date" id="renew-expiry" value="${fyDates ? fyDates.end : ''}" /></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group"><label>Amount</label><input type="text" id="renew-amount" value="${plat['Amount'] || ''}" /></div>
+                        <div class="form-group"><label>Grace Period (days)</label><input type="number" id="renew-grace" value="${fromData.gracePeriod || '7'}" min="0" max="90" /></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group"><label>Payment Cycle</label><input type="text" id="renew-cycle" value="${plat['Payment Cycle'] || ''}" /></div>
+                        <div class="form-group"><label>Users/Licenses</label><input type="text" id="renew-users" value="${plat['Amount'] ? '' : ''}" /></div>
+                    </div>
+                    <button class="btn btn-primary" onclick="saveRenewal('${newFY}', '${fromFY}')">Create Renewal</button>
+                </div>`;
+
+            const existing = document.getElementById('renewal-form');
+            if (existing) existing.remove();
+            document.getElementById('org-detail').insertAdjacentHTML('afterbegin', formHtml);
+            document.getElementById('renewal-form').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        async function saveRenewal(newFY, fromFY) {
+            const start = document.getElementById('renew-start').value;
+            const expiry = document.getElementById('renew-expiry').value;
+            const amount = document.getElementById('renew-amount').value;
+            const grace = document.getElementById('renew-grace').value;
+            const cycle = document.getElementById('renew-cycle').value;
+
+            if (!start || !expiry) { Toast.show('Start and Expiry dates are required.', 'error'); return; }
+
+            try {
+                Toast.show('Creating renewal...', 'info');
+
+                const fromData = currentParsed.fyData[fromFY];
+                const fromPlat = fromData.platform;
+
+                // Build new FY data
+                const newFYData = {
+                    platform: { ...fromPlat, 'Start Date': start, 'Expiry Date': expiry, 'Amount': amount, 'Grace Period': grace, 'Payment Cycle': cycle },
+                    platformPayHistory: Utils.generateInstallments(amount, start, expiry, cycle),
+                    projectBatches: fromData.projectBatches.map(b => ({ ...b, 'Start Date': start, 'Expiry Date': expiry })),
+                    projectPayHistories: fromData.projectBatches.map(b => Utils.generateInstallments(b['Amount'], start, expiry, b['Payment Cycle'])),
+                    userBatches: fromData.userBatches.map(b => ({ ...b, 'Start Date': start, 'Expiry Date': expiry })),
+                    userPayHistories: fromData.userBatches.map(b => Utils.generateInstallments(b['Amount'], start, expiry, b['Payment Cycle'])),
+                    documents: [],
+                    gracePeriod: grace
+                };
+
+                // Add to allFYData
+                const allFYData = { ...currentParsed.fyData };
+                allFYData[newFY] = newFYData;
+
+                // Rebuild body
+                const orgData = buildOrgDataFromParsed(currentParsed, currentIssue);
+                const paymentData = buildPaymentDataFromParsed(currentParsed, fromPlat);
+                paymentData.globalPayHistory = currentParsed.paymentHistory || [];
+                const alertData = { enabled: currentParsed.alerts['Alerts Enabled'] || 'Yes', daysBefore: currentParsed.alerts['Alert Days Before'] || '60', recipients: currentParsed.alerts['Alert Recipients'] || '' };
+
+                const newBody = Utils.buildIssueBody(orgData, { allFYData }, paymentData, alertData, currentParsed.notes);
+                await GitHubAPI.updateOrganization(currentIssue.number, { body: newBody });
+
+                const userName = Auth.getUserName();
+                await GitHubAPI.addComment(currentIssue.number, `🔄 **Renewed for ${newFY} by ${userName}** — ${Utils.formatDateTime(new Date().toISOString())}\n\nRenewed from ${fromFY} · Start: ${start} · Expiry: ${expiry} · Amount: ${amount}`);
+
+                Toast.show(`Renewed for ${newFY}!`, 'success');
+                await loadOrganization();
+            } catch (error) {
+                Toast.show('Failed to renew: ' + error.message, 'error');
+            }
+        }
+
+        // ─── FY Document Upload ─────────────────────────
+        let pendingDocType = '';
+        function uploadFYDocument(docType) {
+            pendingDocType = docType;
+            const input = document.getElementById('fy-doc-input');
+            input.onchange = (e) => handleFYDocUpload(e, docType);
+            input.click();
+        }
+
+        async function handleFYDocUpload(event, docType) {
+            const file = event.target.files[0];
+            if (!file) return;
+            if (file.size > CONFIG.maxFileSize) { Toast.show('File too large.', 'error'); return; }
+
+            Toast.show(`Uploading ${docType}...`, 'info');
+            try {
+                const userName = Auth.getUserName();
+                const fy = currentFYTab || Utils.getCurrentFY();
+                const commentBody = `📄 **${fy} ${docType}** uploaded by ${userName} — ${Utils.formatDateTime(new Date().toISOString())}\n\nFile: \`${Utils.escapeHtml(file.name)}\`\nType: ${docType}\nFY: ${fy}`;
+
+                await GitHubAPI.addComment(currentIssue.number, commentBody);
+                await GitHubAPI.addLabels(currentIssue.number, [CONFIG.labels.other.hasDocument]);
+                Toast.show(`${docType} uploaded for ${fy}!`, 'success');
+                await loadOrganization();
+            } catch (error) {
+                Toast.show('Upload failed: ' + error.message, 'error');
             }
         }
 
@@ -1402,6 +1586,47 @@
     </script>
 
     <style>
+        /* FY Tabs */
+        .fy-tabs {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+            padding: 12px 0;
+            border-bottom: 1px solid var(--border);
+        }
+        .fy-tab {
+            padding: 6px 16px;
+            font-size: 13px;
+            font-weight: 600;
+            border: 1.5px solid var(--border);
+            border-radius: 20px;
+            background: var(--bg-white);
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.15s;
+            font-family: inherit;
+        }
+        .fy-tab:hover { border-color: var(--brand); color: var(--brand); }
+        .fy-tab-active { background: var(--brand); color: white; border-color: var(--brand); }
+
+        /* Document Slots */
+        .doc-slots { display: flex; flex-direction: column; gap: 8px; }
+        .doc-slot {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 12px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            font-size: 13px;
+        }
+        .doc-slot-type { font-weight: 700; width: 100px; color: var(--text); }
+        .doc-slot-file { flex: 1; color: var(--brand); font-weight: 500; }
+        .doc-slot-meta { font-size: 11px; color: var(--text-muted); }
+        .doc-slot-empty { flex: 1; color: var(--text-muted); font-style: italic; }
+
         .edit-section-title {
             font-size: 15px;
             font-weight: 700;
