@@ -629,31 +629,52 @@
         // Update contract value hint — shows sum of all CHECKED subscription amounts
         function updateContractHint() {
             let subtotal = 0;
+            let platAmt = 0, projTotal = 0, userTotal = 0;
+            const breakdown = [];
 
-            // Platform amount (only if checked)
+            // Platform amount
             if (document.getElementById('chk-platform').checked) {
-                subtotal += parseFloat(document.getElementById('plat-amount').value) || 0;
+                platAmt = parseFloat(document.getElementById('plat-amount').value) || 0;
+                subtotal += platAmt;
+                if (platAmt > 0) breakdown.push('Platform: ' + platAmt.toLocaleString());
             }
 
-            // Project batch amounts (only if checked)
+            // Project batch amounts
             if (document.getElementById('chk-projects').checked) {
+                let batchNum = 0;
                 document.querySelectorAll('.proj-amount').forEach(el => {
-                    subtotal += parseFloat(el.value) || 0;
+                    batchNum++;
+                    const amt = parseFloat(el.value) || 0;
+                    projTotal += amt;
+                    subtotal += amt;
                 });
+                if (projTotal > 0) breakdown.push('Projects (' + batchNum + '): ' + projTotal.toLocaleString());
             }
 
-            // User batch amounts (only if checked)
+            // User batch amounts
             if (document.getElementById('chk-users').checked) {
+                let batchNum = 0;
                 document.querySelectorAll('.user-amount').forEach(el => {
-                    subtotal += parseFloat(el.value) || 0;
+                    batchNum++;
+                    const amt = parseFloat(el.value) || 0;
+                    userTotal += amt;
+                    subtotal += amt;
                 });
+                if (userTotal > 0) breakdown.push('Users (' + batchNum + '): ' + userTotal.toLocaleString());
             }
 
+            // Auto-fill contract value with subtotal
+            const contractInput = document.getElementById('pay-contract');
+            if (subtotal > 0) {
+                contractInput.value = subtotal;
+            }
+
+            // Show hint with hover breakdown
             const hint = document.getElementById('pay-contract-hint');
             if (subtotal > 0) {
-                hint.textContent = `Subscription subtotal: ${subtotal.toLocaleString()} (before tax/discounts)`;
+                hint.innerHTML = `<span style="cursor:help;border-bottom:1px dashed var(--text-muted);" title="${breakdown.join('\n')}">Subscription subtotal: ${subtotal.toLocaleString()} (before tax/discounts)</span>`;
             } else {
-                hint.textContent = '';
+                hint.innerHTML = '';
             }
         }
 
