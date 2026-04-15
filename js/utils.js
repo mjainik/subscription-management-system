@@ -97,25 +97,106 @@ const Utils = {
     generateId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 11); },
 
     // ═══════════════════════════════════════════════════════
-    // PARSER — Per-Subscription Payment History
+    // FINANCIAL YEAR HELPERS (Indian FY: Apr-Mar)
     // ═══════════════════════════════════════════════════════
 
     /**
-     * Parse issue body. Now supports per-subscription payment histories:
-     * "## Platform Payment History", "## Project Batch 1 Payment History", etc.
+     * Get Indian FY string from a date. e.g., "FY 2026-27"
+     * FY starts April 1. Any date Apr-Dec = that year. Jan-Mar = previous year.
+     */
+    getFY(dateStr) {
+        if (!dateStr) return '';
+        const d = new Date(dateStr);
+        if (isNaN(d.getTime())) return '';
+        const year = d.getFullYear();
+        const month = d.getMonth(); // 0-indexed
+        // Apr(3)-Dec(11) = FY starts this year. Jan(0)-Mar(2) = FY started last year.
+        const fyStartYear = month >= 3 ? year : year - 1;
+        return `FY ${fyStartYear}-${String(fyStartYear + 1).slice(2)}`;
+    },
+
+    /**
+     * Get current Indian FY
+     */
+    getCurrentFY() {
+        return this.getFY(new Date().toISOString());
+    },
+
+    /**
+     * Parse FY string to start/end dates. "FY 2026-27" → { start: "2026-04-01", end: "2027-03-31" }
+     */
+    parseFYDates(fyStr) {
+        const m = (fyStr || '').match(/FY\s*(\d{4})-(\d{2})/);
+        if (!m) return null;
+        const startYear = parseInt(m[1]);
+        return { start: `${startYear}-04-01`, end: `${startYear + 1}-03-31` };
+    },
+
+    /**
+     * Get all FY strings from an array of FY data objects, sorted newest first
+     */
+    sortFYs(fyList) {
+        return fyList.sort((a, b) => {
+            const aYear = parseInt((a || '').match(/\d{4}/)?.[0] || '0');
+            const bYear = parseInt((b || '').match(/\d{4}/)?.[0] || '0');
+            return bYear - aYear;
+        });
+    },
+
+    /**
+     * Get grace period status
+     * Returns: 'active' | 'grace' | 'expired'
+     */
+    getGraceStatus(expiryDate, graceDays) {
+        if (!expiryDate) return 'active';
+        const days = this.remainingDays(expiryDate);
+        const grace = parseInt(graceDays) || 7;
+        if (days > 0) return 'active';
+        if (days <= 0 && Math.abs(days) <= grace) return 'grace';
+        return 'expired';
+    },
+
+    /**
+     * Grace period badge HTML
+     */
+    graceBadge(expiryDate, graceDays) {
+        const status = this.getGraceStatus(expiryDate, graceDays);
+        if (status === 'active') return this.statusBadge(expiryDate);
+        if (status === 'grace') {
+            const grace = parseInt(graceDays) || 7;
+            const days = this.remainingDays(expiryDate);
+            const graceLeft = grace - Math.abs(days);
+            return `<span class="badge badge-warning">⏳ Grace Period (${graceLeft}d left)</span>`;
+        }
+        return '<span class="badge badge-error">❌ Expired</span>';
+    },
+
+    // ═══════════════════════════════════════════════════════
+    // PARSER — FY-based + Per-Subscription Payment History
+    // ═══════════════════════════════════════════════════════
+
+    /**
+     * Parse issue body. Supports:
+     * - FY-based sections: "## FY 2026-27 Platform Subscription"
+     * - Non-FY sections (backward compat): "## Platform Subscription"
+     * - Legacy: "## Subscription Details"
+     * Returns data with `fyData` map: { "FY 2026-27": { platform, batches, payments, docs }, ... }
      */
     parseIssueBody(body) {
         const data = {
             organization: {},
+            fyData: {},               // Map of FY → { platform, platformPayHistory, projectBatches, projectPayHistories, userBatches, userPayHistories, documents, gracePeriod }
+            fyList: [],               // Sorted list of FY strings (newest first)
+            // Flat accessors (point to current/latest FY for backward compat)
             platform: null,
-            platformPayHistory: [],     // NEW: per-platform payment history
+            platformPayHistory: [],
             projectBatches: [],
-            projectPayHistories: [],    // NEW: per-batch payment histories (array of arrays)
+            projectPayHistories: [],
             userBatches: [],
-            userPayHistories: [],       // NEW: per-batch payment histories
+            userPayHistories: [],
             subscriptions: [],
-            payment: {},                // Global payment details (kept for special cases)
-            paymentHistory: [],         // Global payment history (ad-hoc)
+            payment: {},
+            paymentHistory: [],
             alerts: {},
             notes: ''
         };
@@ -123,47 +204,100 @@ const Utils = {
         if (!body) return data;
 
         const sections = body.split(/^## /m).filter(Boolean);
+        const fyRegex = /^(FY\s*\d{4}-\d{2})\s+/i;
 
         for (const section of sections) {
             const lines = section.trim().split('\n');
             const title = lines[0].trim();
             const titleLower = title.toLowerCase();
+            const tableData = lines.slice(1);
+
+            // Check if section has FY prefix
+            const fyMatch = title.match(fyRegex);
+            const fy = fyMatch ? fyMatch[1].toUpperCase().replace(/\s+/g, ' ') : null;
+            const sectionName = fy ? title.substring(fyMatch[0].length).trim().toLowerCase() : titleLower;
+
+            // Initialize FY data if needed
+            if (fy && !data.fyData[fy]) {
+                data.fyData[fy] = {
+                    platform: null, platformPayHistory: [],
+                    projectBatches: [], projectPayHistories: [],
+                    userBatches: [], userPayHistories: [],
+                    documents: [], gracePeriod: '7'
+                };
+            }
+
+            const target = fy ? data.fyData[fy] : data;
 
             if (titleLower.includes('organization details')) {
-                data.organization = this.parseMarkdownTable(lines.slice(1));
-            } else if (titleLower === 'platform subscription') {
-                data.platform = this.parseMarkdownTable(lines.slice(1));
-            } else if (titleLower === 'platform payment history') {
-                data.platformPayHistory = this.parsePaymentHistoryTable(lines.slice(1));
-            } else if (titleLower.startsWith('project batch') && !titleLower.includes('payment history')) {
-                data.projectBatches.push(this.parseMarkdownTable(lines.slice(1)));
-            } else if (titleLower.startsWith('project batch') && titleLower.includes('payment history')) {
-                data.projectPayHistories.push(this.parsePaymentHistoryTable(lines.slice(1)));
-            } else if (titleLower.startsWith('user batch') && !titleLower.includes('payment history')) {
-                data.userBatches.push(this.parseMarkdownTable(lines.slice(1)));
-            } else if (titleLower.startsWith('user batch') && titleLower.includes('payment history')) {
-                data.userPayHistories.push(this.parsePaymentHistoryTable(lines.slice(1)));
+                data.organization = this.parseMarkdownTable(tableData);
+            } else if (sectionName === 'platform subscription') {
+                target.platform = this.parseMarkdownTable(tableData);
+                if (target.platform['Grace Period']) {
+                    if (fy) data.fyData[fy].gracePeriod = target.platform['Grace Period'];
+                }
+            } else if (sectionName === 'platform payment history') {
+                target.platformPayHistory = this.parsePaymentHistoryTable(tableData);
+            } else if (sectionName.startsWith('project batch') && !sectionName.includes('payment history')) {
+                target.projectBatches.push(this.parseMarkdownTable(tableData));
+            } else if (sectionName.startsWith('project batch') && sectionName.includes('payment history')) {
+                target.projectPayHistories.push(this.parsePaymentHistoryTable(tableData));
+            } else if (sectionName.startsWith('user batch') && !sectionName.includes('payment history')) {
+                target.userBatches.push(this.parseMarkdownTable(tableData));
+            } else if (sectionName.startsWith('user batch') && sectionName.includes('payment history')) {
+                target.userPayHistories.push(this.parsePaymentHistoryTable(tableData));
+            } else if (sectionName.includes('documents')) {
+                if (fy) data.fyData[fy].documents = this._parseDocumentsTable(tableData);
             } else if (titleLower.includes('subscription') && !titleLower.includes('details')) {
-                data.subscriptions.push(this.parseMarkdownTable(lines.slice(1)));
+                data.subscriptions.push(this.parseMarkdownTable(tableData));
             } else if (titleLower === 'subscription details') {
-                data.subscriptions.push(this.parseMarkdownTable(lines.slice(1)));
+                data.subscriptions.push(this.parseMarkdownTable(tableData));
             } else if (titleLower === 'payment details') {
-                data.payment = this.parseMarkdownTable(lines.slice(1));
+                data.payment = this.parseMarkdownTable(tableData);
             } else if (titleLower === 'payment history') {
-                data.paymentHistory = this.parsePaymentHistoryTable(lines.slice(1));
+                data.paymentHistory = this.parsePaymentHistoryTable(tableData);
             } else if (titleLower.includes('alert settings')) {
-                data.alerts = this.parseMarkdownTable(lines.slice(1));
+                data.alerts = this.parseMarkdownTable(tableData);
             } else if (titleLower.includes('notes')) {
                 data.notes = lines.slice(1).join('\n').trim();
             }
         }
 
-        // Backward compat
+        // Build sorted FY list
+        data.fyList = this.sortFYs(Object.keys(data.fyData));
+
+        // Set flat accessors to latest FY (or non-FY data for backward compat)
+        if (data.fyList.length > 0) {
+            const latestFY = data.fyList[0];
+            const latest = data.fyData[latestFY];
+            data.platform = latest.platform;
+            data.platformPayHistory = latest.platformPayHistory;
+            data.projectBatches = latest.projectBatches;
+            data.projectPayHistories = latest.projectPayHistories;
+            data.userBatches = latest.userBatches;
+            data.userPayHistories = latest.userPayHistories;
+        }
+
+        // Backward compat: if no FY data and no platform but has legacy subscriptions
         if (!data.platform && data.projectBatches.length === 0 && data.userBatches.length === 0 && data.subscriptions.length > 0) {
             data.platform = data.subscriptions[0];
         }
 
         return data;
+    },
+
+    /**
+     * Parse documents table: | # | Type | File | Uploaded By | Date |
+     */
+    _parseDocumentsTable(lines) {
+        const docs = [];
+        for (const line of lines) {
+            const match = line.match(/\|\s*(\d+)\s*\|\s*(.+?)\s*\|\s*(.+?)\s*\|\s*(.+?)\s*\|\s*(.+?)\s*\|/);
+            if (match) {
+                docs.push({ number: match[1].trim(), type: match[2].trim(), file: match[3].trim(), uploadedBy: match[4].trim(), date: match[5].trim() });
+            }
+        }
+        return docs;
     },
 
     parseMarkdownTable(lines) {
@@ -352,6 +486,11 @@ const Utils = {
     // BODY BUILDER — Per-Subscription Payment Histories
     // ═══════════════════════════════════════════════════════
 
+    /**
+     * Build issue body. Supports FY-based output.
+     * If subTypes has `fy` property, sections are prefixed with FY.
+     * If subTypes has `allFYData` (map of FY → data), builds all FYs.
+     */
     buildIssueBody(orgData, subTypes, paymentData, alertData, notes) {
         let body = `## Organization Details\n| Field | Value |\n|-------|-------|\n`;
         body += `| Organization Name | ${orgData.name || ''} |\n`;
@@ -374,36 +513,46 @@ const Utils = {
             subTypes.forEach((sub, i) => {
                 body += this._buildSubSection(subTypes.length > 1 ? `Subscription ${i + 1}` : 'Subscription Details', sub);
             });
+        } else if (subTypes.allFYData) {
+            // Multi-FY format — write each FY's data with prefix
+            const fyList = this.sortFYs(Object.keys(subTypes.allFYData));
+            for (const fy of fyList) {
+                body += this._buildFYBlock(fy, subTypes.allFYData[fy]);
+            }
         } else {
-            // New 3-tier format with per-subscription payment histories
+            // Single FY or non-FY format
+            const prefix = subTypes.fy ? `${subTypes.fy} ` : '';
             if (subTypes.platform) {
-                body += this._buildSubSection('Platform Subscription', subTypes.platform);
-                body += this._buildPayHistorySection('Platform Payment History', subTypes.platformPayHistory);
+                body += this._buildSubSection(`${prefix}Platform Subscription`, subTypes.platform);
+                body += this._buildPayHistorySection(`${prefix}Platform Payment History`, subTypes.platformPayHistory);
             }
             if (subTypes.projectBatches) {
                 subTypes.projectBatches.forEach((batch, i) => {
-                    body += this._buildBatchSection(`Project Batch ${i + 1}`, batch, 'project');
+                    body += this._buildBatchSection(`${prefix}Project Batch ${i + 1}`, batch, 'project');
                     const history = subTypes.projectPayHistories ? subTypes.projectPayHistories[i] : null;
-                    body += this._buildPayHistorySection(`Project Batch ${i + 1} Payment History`, history);
+                    body += this._buildPayHistorySection(`${prefix}Project Batch ${i + 1} Payment History`, history);
                 });
             }
             if (subTypes.userBatches) {
                 subTypes.userBatches.forEach((batch, i) => {
-                    body += this._buildBatchSection(`User Batch ${i + 1}`, batch, 'user');
+                    body += this._buildBatchSection(`${prefix}User Batch ${i + 1}`, batch, 'user');
                     const history = subTypes.userPayHistories ? subTypes.userPayHistories[i] : null;
-                    body += this._buildPayHistorySection(`User Batch ${i + 1} Payment History`, history);
+                    body += this._buildPayHistorySection(`${prefix}User Batch ${i + 1} Payment History`, history);
                 });
+            }
+            // FY documents
+            if (subTypes.fy && subTypes.documents && subTypes.documents.length > 0) {
+                body += this._buildDocumentsSection(`${prefix}Documents`, subTypes.documents);
             }
         }
 
-        // Global Payment Details (kept for contract value + ad-hoc)
+        // Global Payment Details
         body += `\n## Payment Details\n| Field | Value |\n|-------|-------|\n`;
         body += `| Contract Value | ${paymentData.contractValue || ''} |\n`;
         body += `| Total Paid | ${paymentData.totalPaid || '0'} |\n`;
         body += `| Remaining | ${paymentData.remaining || ''} |\n`;
         body += `| Payment Status | ${paymentData.status || 'Due'} |\n`;
 
-        // Global Payment History (ad-hoc only)
         if (paymentData.globalPayHistory && paymentData.globalPayHistory.length > 0) {
             body += this._buildPayHistorySection('Payment History', paymentData.globalPayHistory);
         }
@@ -418,18 +567,59 @@ const Utils = {
         return body;
     },
 
+    /**
+     * Build a complete FY block with all its sections
+     */
+    _buildFYBlock(fy, fyData) {
+        let s = '';
+        if (fyData.platform) {
+            // Add grace period to platform data
+            if (fyData.gracePeriod) fyData.platform['Grace Period'] = fyData.gracePeriod;
+            s += this._buildSubSection(`${fy} Platform Subscription`, fyData.platform);
+            s += this._buildPayHistorySection(`${fy} Platform Payment History`, fyData.platformPayHistory);
+        }
+        if (fyData.projectBatches) {
+            fyData.projectBatches.forEach((batch, i) => {
+                s += this._buildBatchSection(`${fy} Project Batch ${i + 1}`, batch, 'project');
+                const history = fyData.projectPayHistories ? fyData.projectPayHistories[i] : null;
+                s += this._buildPayHistorySection(`${fy} Project Batch ${i + 1} Payment History`, history);
+            });
+        }
+        if (fyData.userBatches) {
+            fyData.userBatches.forEach((batch, i) => {
+                s += this._buildBatchSection(`${fy} User Batch ${i + 1}`, batch, 'user');
+                const history = fyData.userPayHistories ? fyData.userPayHistories[i] : null;
+                s += this._buildPayHistorySection(`${fy} User Batch ${i + 1} Payment History`, history);
+            });
+        }
+        if (fyData.documents && fyData.documents.length > 0) {
+            s += this._buildDocumentsSection(`${fy} Documents`, fyData.documents);
+        }
+        return s;
+    },
+
     _buildSubSection(heading, sub) {
         let s = `\n## ${heading}\n| Field | Value |\n|-------|-------|\n`;
-        s += `| Subscription Type | ${sub.type || ''} |\n`;
-        if (sub.customDuration) s += `| Custom Duration | ${sub.customDuration} months |\n`;
-        s += `| Plan Name | ${sub.planName || ''} |\n`;
-        s += `| Start Date | ${sub.startDate || ''} |\n`;
-        s += `| Expiry Date | ${sub.expiryDate || ''} |\n`;
-        s += `| Billing Date | ${sub.billingDate || ''} |\n`;
-        s += `| Payment Cycle | ${sub.paymentCycle || ''} |\n`;
-        s += `| Amount | ${sub.amount || ''} |\n`;
-        s += `| Currency | ${sub.currency || 'USD'} |\n`;
-        s += `| Auto Renew | ${sub.autoRenew || 'No'} |\n`;
+        s += `| Subscription Type | ${sub.type || sub['Subscription Type'] || ''} |\n`;
+        if (sub.customDuration || sub['Custom Duration']) s += `| Custom Duration | ${sub.customDuration || sub['Custom Duration']} |\n`;
+        s += `| Plan Name | ${sub.planName || sub['Plan Name'] || ''} |\n`;
+        s += `| Start Date | ${sub.startDate || sub['Start Date'] || ''} |\n`;
+        s += `| Expiry Date | ${sub.expiryDate || sub['Expiry Date'] || ''} |\n`;
+        if (sub.gracePeriod || sub['Grace Period']) s += `| Grace Period | ${sub.gracePeriod || sub['Grace Period']} |\n`;
+        s += `| Billing Date | ${sub.billingDate || sub['Billing Date'] || ''} |\n`;
+        s += `| Payment Cycle | ${sub.paymentCycle || sub['Payment Cycle'] || ''} |\n`;
+        s += `| Amount | ${sub.amount || sub['Amount'] || ''} |\n`;
+        s += `| Currency | ${sub.currency || sub['Currency'] || 'INR'} |\n`;
+        s += `| Auto Renew | ${sub.autoRenew || sub['Auto Renew'] || 'No'} |\n`;
+        return s;
+    },
+
+    _buildDocumentsSection(heading, documents) {
+        if (!documents || documents.length === 0) return '';
+        let s = `\n## ${heading}\n| # | Type | File | Uploaded By | Date |\n|---|------|------|-------------|------|\n`;
+        for (const d of documents) {
+            s += `| ${d.number} | ${d.type} | ${d.file} | ${d.uploadedBy} | ${d.date} |\n`;
+        }
         return s;
     },
 
